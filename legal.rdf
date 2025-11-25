@@ -1,0 +1,368 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns="http://www.legalontosystem.org/ontology#"
+     xml:base="http://www.legalontosystem.org/ontology"
+     xmlns:owl="http://www.w3.org/2002/07/owl#"
+     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:xml="http://www.w3.org/XML/1998/namespace"
+     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+
+  <!-- Ontología -->
+  <owl:Ontology rdf:about="http://www.legalontosystem.org/ontology">
+    <dc:title>Legal Ontology System - Perú (versión corregida)</dc:title>
+    <dc:description>Ontología del dominio legal peruano: leyes, artículos, casos, precedentes, actores y jurisdicciones.</dc:description>
+    <dc:creator>Evelyn / LegalOntoSystem</dc:creator>
+    <dc:publisher>Diario Oficial El Peruano</dc:publisher>
+    <dc:language>es-PE</dc:language>
+    <owl:versionInfo>1.0-peru</owl:versionInfo>
+
+
+
+  <!-- Entidad legal genérica -->
+  <owl:Class rdf:about="#EntidadLegal">
+    <rdfs:label>EntidadLegal</rdfs:label>
+    <rdfs:comment>Superclase para elementos del dominio jurídico (leyes, artículos, precedentes, casos).</rdfs:comment>
+  </owl:Class>
+
+  <!-- Ley, Artículo, Caso, Precedente -->
+  <owl:Class rdf:about="#Ley">
+    <rdfs:subClassOf rdf:resource="#EntidadLegal"/>
+    <rdfs:label>Ley</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#Articulo">
+    <rdfs:subClassOf rdf:resource="#EntidadLegal"/>
+    <rdfs:label>Articulo</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#Caso">
+    <rdfs:subClassOf rdf:resource="#EntidadLegal"/>
+    <rdfs:label>Caso</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#Precedente">
+    <rdfs:subClassOf rdf:resource="#EntidadLegal"/>
+    <rdfs:label>Precedente</rdfs:label>
+  </owl:Class>
+
+  <!-- Jurisdicción -->
+  <owl:Class rdf:about="#JurisdiccionTerritorial">
+    <rdfs:label>JurisdiccionTerritorial</rdfs:label>
+    <rdfs:comment>Jurisdicción territorial de aplicación (Nacional, Regional, Municipal).</rdfs:comment>
+  </owl:Class>
+  <owl:Class rdf:about="#JurisdiccionNacional">
+    <rdfs:subClassOf rdf:resource="#JurisdiccionTerritorial"/>
+    <rdfs:label>JurisdiccionNacional</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="#JurisdiccionRegional">
+    <rdfs:subClassOf rdf:resource="#JurisdiccionTerritorial"/>
+    <rdfs:label>JurisdiccionRegional</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="#JurisdiccionMunicipal">
+    <rdfs:subClassOf rdf:resource="#JurisdiccionTerritorial"/>
+    <rdfs:label>JurisdiccionMunicipal</rdfs:label>
+  </owl:Class>
+
+  <!-- Tipo de norma (jerarquía) - adaptado a Perú -->
+  <owl:Class rdf:about="#TipoNorma">
+    <rdfs:label>TipoNorma</rdfs:label>
+    <rdfs:comment>Clasificación de la norma según el ordenamiento jurídico peruano.</rdfs:comment>
+  </owl:Class>
+
+  <owl:Class rdf:about="#Constitucion">
+    <rdfs:subClassOf rdf:resource="#TipoNorma"/>
+    <rdfs:label>Constitucion</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#LeyOrganica">
+    <rdfs:subClassOf rdf:resource="#TipoNorma"/>
+    <rdfs:label>LeyOrganica</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#LeyOrdinaria">
+    <rdfs:subClassOf rdf:resource="#TipoNorma"/>
+    <rdfs:label>LeyOrdinaria</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#DecretoLegislativo">
+    <rdfs:subClassOf rdf:resource="#TipoNorma"/>
+    <rdfs:label>DecretoLegislativo</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#DecretoUrgencia">
+    <rdfs:subClassOf rdf:resource="#TipoNorma"/>
+    <rdfs:label>DecretoUrgencia</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#DecretoSupremo">
+    <rdfs:subClassOf rdf:resource="#TipoNorma"/>
+    <rdfs:label>DecretoSupremo</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#ResolucionMinisterial">
+    <rdfs:subClassOf rdf:resource="#TipoNorma"/>
+    <rdfs:label>ResolucionMinisterial</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#OrdenanzaMunicipal">
+    <rdfs:subClassOf rdf:resource="#TipoNorma"/>
+    <rdfs:label>OrdenanzaMunicipal</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#SentenciaTribunalConstitucional">
+    <rdfs:subClassOf rdf:resource="#TipoNorma"/>
+    <rdfs:label>SentenciaTribunalConstitucional</rdfs:label>
+  </owl:Class>
+
+  <!-- Actor normativo (quién emite) -->
+  <owl:Class rdf:about="#ActorNormativo">
+    <rdfs:label>ActorNormativo</rdfs:label>
+    <rdfs:comment>Organismo que emite la norma (Congreso, Poder Ejecutivo, Ministerios, Municipios, etc.).</rdfs:comment>
+  </owl:Class>
+  <owl:Class rdf:about="#Congreso">
+    <rdfs:subClassOf rdf:resource="#ActorNormativo"/>
+    <rdfs:label>Congreso</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="#PoderEjecutivo">
+    <rdfs:subClassOf rdf:resource="#ActorNormativo"/>
+    <rdfs:label>PoderEjecutivo</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="#Ministerio">
+    <rdfs:subClassOf rdf:resource="#ActorNormativo"/>
+    <rdfs:label>Ministerio</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="#Municipalidad">
+    <rdfs:subClassOf rdf:resource="#ActorNormativo"/>
+    <rdfs:label>Municipalidad</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="#TribunalConstitucional">
+    <rdfs:subClassOf rdf:resource="#ActorNormativo"/>
+    <rdfs:label>TribunalConstitucional</rdfs:label>
+  </owl:Class>
+
+  <!-- Estado de la norma -->
+  <owl:Class rdf:about="#EstadoNorma">
+    <rdfs:label>EstadoNorma</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="#Vigente">
+    <rdfs:subClassOf rdf:resource="#EstadoNorma"/>
+    <rdfs:label>Vigente</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="#Derogada">
+    <rdfs:subClassOf rdf:resource="#EstadoNorma"/>
+    <rdfs:label>Derogada</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="#Modificada">
+    <rdfs:subClassOf rdf:resource="#EstadoNorma"/>
+    <rdfs:label>Modificada</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="#Suspendida">
+    <rdfs:subClassOf rdf:resource="#EstadoNorma"/>
+    <rdfs:label>Suspendida</rdfs:label>
+  </owl:Class>
+
+  <!-- Area del derecho / materia (opcional para búsquedas) -->
+  <owl:Class rdf:about="#AreaDerecho">
+    <rdfs:label>AreaDerecho</rdfs:label>
+  </owl:Class>
+
+
+  <!-- Estructura Ley <-> Articulo -->
+  <owl:ObjectProperty rdf:about="#contieneArticulo">
+    <rdfs:label>contieneArticulo</rdfs:label>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="#Articulo"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#perteneceALey">
+    <rdfs:label>perteneceALey</rdfs:label>
+    <rdfs:domain rdf:resource="#Articulo"/>
+    <rdfs:range rdf:resource="#Ley"/>
+    <owl:inverseOf rdf:resource="#contieneArticulo"/>
+  </owl:ObjectProperty>
+
+  <!-- Relaciones entre normas -->
+  <owl:ObjectProperty rdf:about="#deroga">
+    <rdfs:label>deroga</rdfs:label>
+    <rdfs:comment>Indica que una norma deroga (deja sin efecto) a otra.</rdfs:comment>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="#Ley"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#modifica">
+    <rdfs:label>modifica</rdfs:label>
+    <rdfs:comment>Indica que una norma modifica parcialmente a otra.</rdfs:comment>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="#Ley"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#complementa">
+    <rdfs:label>complementa</rdfs:label>
+    <rdfs:comment>Indica que una norma complementa a otra.</rdfs:comment>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="#Ley"/>
+  </owl:ObjectProperty>
+
+  <!-- Reglamentación: la norma reglamentaria (DS) reglamenta a una Ley -->
+  <owl:ObjectProperty rdf:about="#reglamentadoPor">
+    <rdfs:label>reglamentadoPor</rdfs:label>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="#DecretoSupremo"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#emitidaPor">
+    <rdfs:label>emitidaPor</rdfs:label>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="#ActorNormativo"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#aplicableEn">
+    <rdfs:label>aplicableEn</rdfs:label>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="#JurisdiccionTerritorial"/>
+  </owl:ObjectProperty>
+
+  <!-- Casos / precedentes -->
+  <owl:ObjectProperty rdf:about="#generaPrecedente">
+    <rdfs:label>generaPrecedente</rdfs:label>
+    <rdfs:domain rdf:resource="#Caso"/>
+    <rdfs:range rdf:resource="#Precedente"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#basadoEnPrecedente">
+    <rdfs:label>basadoEnPrecedente</rdfs:label>
+    <rdfs:domain rdf:resource="#Caso"/>
+    <rdfs:range rdf:resource="#Precedente"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#emitidoPorTribunal">
+    <rdfs:label>emitidoPorTribunal</rdfs:label>
+    <rdfs:domain rdf:resource="#Precedente"/>
+    <rdfs:range rdf:resource="#TribunalConstitucional"/>
+  </owl:ObjectProperty>
+
+  <!-- Clasificación -->
+  <owl:ObjectProperty rdf:about="#tieneCategoria">
+    <rdfs:label>tieneCategoria</rdfs:label>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="#TipoNorma"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#perteneceAreaDerecho">
+    <rdfs:label>perteneceAreaDerecho</rdfs:label>
+    <rdfs:domain rdf:resource="#EntidadLegal"/>
+    <rdfs:range rdf:resource="#AreaDerecho"/>
+  </owl:ObjectProperty>
+
+
+  <owl:DatatypeProperty rdf:about="#numeroNorma">
+    <rdfs:label>numeroNorma</rdfs:label>
+    <rdfs:comment>Número oficial de la norma (ej. Ley N.º 30364)</rdfs:comment>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#titulo">
+    <rdfs:label>titulo</rdfs:label>
+    <rdfs:domain rdf:resource="#EntidadLegal"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#sumilla">
+    <rdfs:label>sumilla</rdfs:label>
+    <rdfs:comment>Resumen breve de la norma o precedente</rdfs:comment>
+    <rdfs:domain rdf:resource="#EntidadLegal"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#contenido">
+    <rdfs:label>contenido</rdfs:label>
+    <rdfs:comment>Texto completo o extracto de la norma</rdfs:comment>
+    <rdfs:domain rdf:resource="#EntidadLegal"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#fechaPublicacion">
+    <rdfs:label>fechaPublicacion</rdfs:label>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#date"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#fechaInicioVigencia">
+    <rdfs:label>fechaInicioVigencia</rdfs:label>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#date"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#fechaFinVigencia">
+    <rdfs:label>fechaFinVigencia</rdfs:label>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#date"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#urlPublicacionOficial">
+    <rdfs:label>urlPublicacionOficial</rdfs:label>
+    <rdfs:comment>Enlace a la publicación oficial (El Peruano o web oficial)</rdfs:comment>
+    <rdfs:domain rdf:resource="#Ley"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#anyURI"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#expediente">
+    <rdfs:label>expediente</rdfs:label>
+    <rdfs:domain rdf:resource="#Caso"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#fechaResolucion">
+    <rdfs:label>fechaResolucion</rdfs:label>
+    <rdfs:domain rdf:resource="#Caso"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#date"/>
+  </owl:DatatypeProperty>
+
+
+  <!-- Ejemplo: Ley ordinaria -->
+  <owl:NamedIndividual rdf:about="#Ley_30364">
+    <rdf:type rdf:resource="#LeyOrdinaria"/>
+    <rdf:type rdf:resource="#Ley"/>
+    <titulo>LEY N.º 30364 - Ley de Protección</titulo>
+    <numeroNorma>30364</numeroNorma>
+    <sumilla>Medidas de protección y atención</sumilla>
+    <fechaPublicacion rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2015-07-10</fechaPublicacion>
+    <fechaInicioVigencia rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2015-07-11</fechaInicioVigencia>
+    <urlPublicacionOficial rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://elperuano.pe/</urlPublicacionOficial>
+    <tieneCategoria rdf:resource="#LeyOrdinaria"/>
+    <emitidaPor rdf:resource="#Congreso"/>
+    <aplicableEn rdf:resource="#JurisdiccionNacional"/>
+  </owl:NamedIndividual>
+
+  <!-- Ejemplo: Artículo dentro de Ley_30364 -->
+  <owl:NamedIndividual rdf:about="#Articulo_30364_1">
+    <rdf:type rdf:resource="#Articulo"/>
+    <numeroNorma>1</numeroNorma>
+    <titulo>Ámbito de aplicación</titulo>
+    <contenido>La presente ley se aplica a ...</contenido>
+    <perteneceALey rdf:resource="#Ley_30364"/>
+  </owl:NamedIndividual>
+
+  <!-- Ejemplo: Decreto Supremo que reglamenta -->
+  <owl:NamedIndividual rdf:about="#DS_008_2016_MIMP">
+    <rdf:type rdf:resource="#DecretoSupremo"/>
+    <rdf:type rdf:resource="#Ley"/> <!-- permitimos tratarlo como norma -->
+    <numeroNorma>008-2016-MIMP</numeroNorma>
+    <titulo>Decreto Supremo que reglamenta Ley N.º 30364</titulo>
+    <fechaPublicacion rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2016-02-01</fechaPublicacion>
+    <urlPublicacionOficial rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://elperuano.pe/</urlPublicacionOficial>
+    <emitidaPor rdf:resource="#PoderEjecutivo"/>
+    <reglamentadoPor rdf:resource="#Ley_30364"/> <!-- relación inversa semántica: este DS reglamenta Ley_30364 -->
+  </owl:NamedIndividual>
+
+  <!-- Ejemplo: Jurisdicción nacional -->
+  <owl:NamedIndividual rdf:about="#JurisdiccionNacional_Peru">
+    <rdf:type rdf:resource="#JurisdiccionNacional"/>
+    <rdfs:label>Perú - Jurisdicción Nacional</rdfs:label>
+  </owl:NamedIndividual>
+
+
+
+</rdf:RDF>
