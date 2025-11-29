@@ -1,0 +1,339 @@
+@prefix : <http://legalontosystem.pe/ontology#> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@base <http://legalontosystem.pe/ontology#> .
+
+<http://legalontosystem.pe/ontology> a owl:Ontology ;
+    dc:title "Ontología Legal Peruana" ;
+    dc:description "Modelo semántico del sistema legal peruano (LegalOntoSystem)" ;
+    owl:versionInfo "1.0" .
+
+# -----------------------
+# CLASES
+# -----------------------
+:NormaLegal a owl:Class ;
+    rdfs:label "NormaLegal" .
+
+:Ley a owl:Class ;
+    rdfs:subClassOf :NormaLegal ;
+    rdfs:label "Ley" .
+
+:DecretoLegislativo a owl:Class ;
+    rdfs:subClassOf :NormaLegal ;
+    rdfs:label "DecretoLegislativo" .
+
+:DecretoSupremo a owl:Class ;
+    rdfs:subClassOf :NormaLegal ;
+    rdfs:label "DecretoSupremo" .
+
+:Resolucion a owl:Class ;
+    rdfs:subClassOf :NormaLegal ;
+    rdfs:label "Resolucion" .
+
+:Articulo a owl:Class ;
+    rdfs:label "Articulo" .
+
+:Caso a owl:Class ;
+    rdfs:label "Caso" .
+
+:Precedente a owl:Class ;
+    rdfs:label "Precedente" .
+
+:JurisdiccionTerritorial a owl:Class ;
+    rdfs:label "JurisdiccionTerritorial" .
+
+:Nacional a owl:Class ;
+    rdfs:subClassOf :JurisdiccionTerritorial ;
+    rdfs:label "Nacional" .
+
+:Regional a owl:Class ;
+    rdfs:subClassOf :JurisdiccionTerritorial ;
+    rdfs:label "Regional" .
+
+:Provincial a owl:Class ;
+    rdfs:subClassOf :JurisdiccionTerritorial ;
+    rdfs:label "Provincial" .
+
+:Distrital a owl:Class ;
+    rdfs:subClassOf :JurisdiccionTerritorial ;
+    rdfs:label "Distrital" .
+
+:TemaLegal a owl:Class ;
+    rdfs:label "TemaLegal" .
+
+:Laboral a owl:Class ;
+    rdfs:subClassOf :TemaLegal ;
+    rdfs:label "Laboral" .
+
+:Civil a owl:Class ;
+    rdfs:subClassOf :TemaLegal ;
+    rdfs:label "Civil" .
+
+:Penal a owl:Class ;
+    rdfs:subClassOf :TemaLegal ;
+    rdfs:label "Penal" .
+
+:Tributario a owl:Class ;
+    rdfs:subClassOf :TemaLegal ;
+    rdfs:label "Tributario" .
+
+:Administrativo a owl:Class ;
+    rdfs:subClassOf :TemaLegal ;
+    rdfs:label "Administrativo" .
+
+:Constitucional a owl:Class ;
+    rdfs:subClassOf :TemaLegal ;
+    rdfs:label "Constitucional" .
+
+:EntidadLegal a owl:Class ;
+    rdfs:label "EntidadLegal" .
+
+:PersonaNatural a owl:Class ;
+    rdfs:subClassOf :EntidadLegal ;
+    rdfs:label "PersonaNatural" .
+
+:PersonaJuridica a owl:Class ;
+    rdfs:subClassOf :EntidadLegal ;
+    rdfs:label "PersonaJuridica" .
+
+:OrganismoEstatal a owl:Class ;
+    rdfs:subClassOf :EntidadLegal ;
+    rdfs:label "OrganismoEstatal" .
+
+# -----------------------
+# PROPIEDADES DE OBJETO
+# -----------------------
+:deroga a owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range :NormaLegal ;
+    rdfs:label "deroga" ;
+    rdfs:comment "Relación: una norma deroga a otra (transitiva)" .
+
+:modifica a owl:ObjectProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range :NormaLegal ;
+    rdfs:label "modifica" ;
+    rdfs:comment "Relación de modificación entre normas" .
+
+:complementa a owl:ObjectProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range :NormaLegal ;
+    rdfs:label "complementa" ;
+    rdfs:comment "Relación de complemento entre normas" .
+
+:reglamentaDe a owl:ObjectProperty ;
+    rdfs:domain :DecretoSupremo ;
+    rdfs:range :Ley ;
+    rdfs:label "reglamentaDe" ;
+    rdfs:comment "Un Decreto Supremo puede reglamentar una Ley" .
+
+:tieneArticulo a owl:ObjectProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range :Articulo ;
+    rdfs:label "tieneArticulo" .
+
+:esParteDe a owl:ObjectProperty ;
+    rdfs:domain :Articulo ;
+    rdfs:range :NormaLegal ;
+    owl:inverseOf :tieneArticulo ;
+    rdfs:label "esParteDe" .
+
+:aplicaEn a owl:ObjectProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range :JurisdiccionTerritorial ;
+    rdfs:label "aplicaEn" .
+
+:afectaTema a owl:ObjectProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range :TemaLegal ;
+    rdfs:label "afectaTema" .
+
+:aplicaACaso a owl:ObjectProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range :Caso ;
+    rdfs:label "aplicaACaso" .
+
+:jurisdiccionCaso a owl:ObjectProperty ;
+    rdfs:domain :Caso ;
+    rdfs:range :JurisdiccionTerritorial ;
+    rdfs:label "jurisdiccionCaso" .
+
+:temaCaso a owl:ObjectProperty ;
+    rdfs:domain :Caso ;
+    rdfs:range :TemaLegal ;
+    rdfs:label "temaCaso" .
+
+:refierePrecedente a owl:ObjectProperty ;
+    rdfs:domain :Caso ;
+    rdfs:range :Precedente ;
+    rdfs:label "refierePrecedente" .
+
+:tienePrecedente a owl:ObjectProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range :Precedente ;
+    rdfs:label "tienePrecedente" .
+
+:generaPrecedente a owl:ObjectProperty ;
+    rdfs:domain :Caso ;
+    rdfs:range :Precedente ;
+    rdfs:label "generaPrecedente" .
+
+:decide a owl:ObjectProperty ;
+    rdfs:domain :Caso ;
+    rdfs:range :OrganismoEstatal ;
+    rdfs:label "decide" .
+
+# -----------------------
+# PROPIEDADES DE DATOS
+# -----------------------
+:numeroNorma a owl:DatatypeProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range xsd:string ;
+    rdfs:label "numeroNorma" .
+
+:titulo a owl:DatatypeProperty ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:string ;
+    rdfs:label "titulo" .
+
+:texto a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "texto" .
+
+:sumilla a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "sumilla" .
+
+:fechaPromulgacion a owl:DatatypeProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range xsd:date ;
+    rdfs:label "fechaPromulgacion" .
+
+:fechaPublicacion a owl:DatatypeProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range xsd:date ;
+    rdfs:label "fechaPublicacion" .
+
+:fechaVigencia a owl:DatatypeProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range xsd:date ;
+    rdfs:label "fechaVigencia" .
+
+:fechaHechos a owl:DatatypeProperty ;
+    rdfs:domain :Caso ;
+    rdfs:range xsd:date ;
+    rdfs:label "fechaHechos" .
+
+:fechaSentencia a owl:DatatypeProperty ;
+    rdfs:domain :Caso ;
+    rdfs:range xsd:date ;
+    rdfs:label "fechaSentencia" .
+
+:numeroExpediente a owl:DatatypeProperty ;
+    rdfs:domain :Caso ;
+    rdfs:range xsd:string ;
+    rdfs:label "numeroExpediente" .
+
+:vigente a owl:DatatypeProperty ;
+    rdfs:domain :NormaLegal ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "vigente" .
+
+:esVinculante a owl:DatatypeProperty ;
+    rdfs:domain :Precedente ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "esVinculante" .
+
+:urlOficial a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "urlOficial" .
+
+:fuente a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "fuente" .
+
+# -----------------------
+# INDIVIDUALES (EJEMPLOS)
+# -----------------------
+
+# Jurisdicción
+:Peru a :Nacional ;
+    rdfs:label "Peru" ;
+    :titulo "Republica del Peru" .
+
+# Temas (individuos ejemplo para usar como objetos de afectaTema/temaCaso)
+:TemaLaboral a :Laboral ;
+    rdfs:label "Derecho Laboral" .
+
+:TemaTributario a :Tributario ;
+    rdfs:label "Derecho Tributario" .
+
+:TemaAdministrativo a :Administrativo ;
+    rdfs:label "Derecho Administrativo" .
+
+# Organismo
+:TribunalConstitucional a :OrganismoEstatal ;
+    rdfs:label "Tribunal Constitucional" ;
+    :titulo "Tribunal Constitucional del Peru" .
+
+# Ley ejemplo: Ley 27444
+:Ley_27444 a :Ley ;
+    :numeroNorma "Ley N 27444" ;
+    :titulo "Ley del Procedimiento Administrativo General" ;
+    :fechaPromulgacion "2001-04-10"^^xsd:date ;
+    :fechaPublicacion "2001-04-11"^^xsd:date ;
+    :vigente true ;
+    :aplicaEn :Peru ;
+    :afectaTema :TemaAdministrativo ;
+    :urlOficial "https://www.gob.pe/institucion/pcm/normas-legales/255951-27444" .
+
+# Artículo ejemplo
+:Ley_27444_Art1 a :Articulo ;
+    :titulo "Articulo 1" ;
+    :texto "La presente Ley tiene por finalidad establecer el regimen juridico aplicable para que la actuacion de la Administracion Publica sirva a la proteccion del interes general..." ;
+    :esParteDe :Ley_27444 .
+
+# Decreto Supremo ejemplo
+:DS_179_2004_EF a :DecretoSupremo ;
+    :numeroNorma "D.S. N 179-2004-EF" ;
+    :titulo "Texto Unico Ordenado de la Ley del Impuesto a la Renta" ;
+    :fechaPromulgacion "2004-12-08"^^xsd:date ;
+    :vigente true ;
+    :aplicaEn :Peru ;
+    :afectaTema :TemaTributario .
+
+# Precedente ejemplo
+:Precedente_001 a :Precedente ;
+    :titulo "Precedente Ejemplo 001" ;
+    :esVinculante false ;
+    :texto "Resumen de la sentencia..." .
+
+# Caso ejemplo que refiere precedente y tiene jurisdicción/tema
+:Caso_001 a :Caso ;
+    :numeroExpediente "EXP-2024-0001" ;
+    :fechaHechos "2023-10-01"^^xsd:date ;
+    :fechaSentencia "2024-03-15"^^xsd:date ;
+    :jurisdiccionCaso :Peru ;
+    :temaCaso :TemaAdministrativo ;
+    :refierePrecedente :Precedente_001 ;
+    :decide :TribunalConstitucional .
+
+# Ejemplo de cadena de derogación
+:Ley_Vieja a :Ley ;
+    :numeroNorma "Ley N 9999" ;
+    :titulo "Ley Vieja" ;
+    :fechaPromulgacion "1990-01-01"^^xsd:date ;
+    :vigente false ;
+    :aplicaEn :Peru .
+
+:Ley_Nueva a :Ley ;
+    :numeroNorma "Ley N 8888" ;
+    :titulo "Ley Nueva que deroga a Ley Vieja" ;
+    :fechaPromulgacion "2020-01-01"^^xsd:date ;
+    :vigente true ;
+    :aplicaEn :Peru ;
+    :deroga :Ley_Vieja .
+

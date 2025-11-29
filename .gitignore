@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+
+# Pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# Coverage
+.coverage
+coverage.xml
+
+# SQLite
+*.sqlite3
+
+# Distribution / packaging
+pip-wheel-metadata/
+share/python-wheels/
+
+# Logs
+*.log
+
+# VSCode
+.vscode/
+
+# JetBrains
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vite / frontend builds
+frontend/dist/
+frontend/.vite/
+
+# Frontend node_modules (in case)
+frontend/node_modules/
+
+# Build outputs
+build/
+dist/
+
+# Uploaded / data files
+/Datos/
+*.csv
+
+# RDF working file produced by ingest
+Ontologia/legal_working.ttl
+
+# GraphDB config (sensitive)
+backend/graphdb_config.json
+
+# Environment variables
+.env
+.env.*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Misc
+*.swp
+*.swo
+*.bak
