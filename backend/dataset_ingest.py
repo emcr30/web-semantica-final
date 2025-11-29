@@ -51,7 +51,7 @@ def ingest_csv_url_into_graph(g: Graph, csv_url: str, limit=50):
             text_content = fetch_text_from_link(link)
         # determine id: prefer OP or NUMERO or fallback to title slug
         law_id = get_any(lowered, ['op','numero','id','identificador']) or (title[:40].replace(' ','_'))
-        rdf_builder.create_law(g, law_id, title, text_content, jurisdiction='Peru')
+        rdf_builder.create_law(g, law_id, title, text_content, jurisdiction='Peru', numero=numero)
         created.append(law_id)
     # After ingest, persist working TTL
     upload_result = None
