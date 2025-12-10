@@ -1,0 +1,13 @@
+HTTP/1.1 400 BAD REQUEST
+Server: Werkzeug/3.1.4 Python/3.11.9
+Date: Tue, 09 Dec 2025 00:31:04 GMT
+Content-Type: text/html; charset=utf-8
+Content-Length: 167
+Access-Control-Allow-Origin: *
+Connection: close
+
+<!doctype html>
+<html lang=en>
+<title>400 Bad Request</title>
+<h1>Bad Request</h1>
+<p>The browser (or proxy) sent a request that this server could not understand.</p>

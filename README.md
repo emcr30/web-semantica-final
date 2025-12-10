@@ -153,6 +153,8 @@ Si dispones de una instancia GraphDB (con o sin Pellet), crea un archivo de conf
 
 Verificación: abre la Workbench de GraphDB y revisa las triples en el repositorio indicado.
 
+Nota sobre razonamiento: para activar razonamiento más potente (OWL2-RL, OWL-Horst) o usar Pellet (OWL-DL) consulta `docs/graphdb_reasoning.md`.
+
 ---
 
 **D. Endpoints importantes (desarrollo)**

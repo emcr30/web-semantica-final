@@ -8,6 +8,7 @@ from werkzeug.utils import secure_filename
 import datetime
 from backend import rdf_builder, reasoner, ingest_peru_api, sparql_queries, contradiction_detector
 from backend import dataset_ingest
+from backend import precedent_processor
 
 APP = Flask(__name__)
 CORS(APP)
@@ -23,6 +24,13 @@ try:
     GRAPH.parse(ONTO_PATH, format='turtle')
 except Exception:
     GRAPH = Graph()
+# Also load working data (generated triples) if present so endpoints see existing laws
+try:
+    if os.path.exists(WORKING_TTL):
+        GRAPH.parse(WORKING_TTL, format='turtle')
+except Exception as e:
+    # don't crash the app on startup; log for debugging
+    print(f"Warning: failed loading working TTL '{WORKING_TTL}': {e}")
 
 @APP.route('/ingest', methods=['POST'])
 def ingest():
@@ -95,7 +103,21 @@ def sparql_endpoint():
     if isinstance(query, str) and '\\n' in query:
         query = query.replace('\\n', '\n')
 
-    res = GRAPH.query(query)
+    # basic validation and defensive logging to catch parse issues
+    if not isinstance(query, str):
+        return jsonify({'error': 'query must be a string', 'type': str(type(query)), 'repr': repr(query)[:1000]}), 400
+
+    try:
+        res = GRAPH.query(query)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        # print to stderr so logs capture the full context
+        print('SPARQL execution error; query preview:', repr(query)[:1000])
+        print(tb)
+        # return a helpful error to the client (preview limited)
+        return jsonify({'error': 'query_error', 'message': str(e), 'query_preview': repr(query)[:1000]}), 500
+
     # convert to JSON-friendly (stringify variable names)
     vars = [str(v) for v in res.vars]
     rows = []
@@ -107,6 +129,84 @@ def sparql_endpoint():
 def detect_contradictions():
     issues = contradiction_detector.find_contradictions(GRAPH)
     return jsonify({'contradictions': issues})
+
+
+@APP.route('/precedents_for_article', methods=['GET'])
+def precedents_for_article():
+    uri = request.args.get('uri')
+    if not uri:
+        return jsonify({'error':'uri param required (article URI)'}), 400
+    jurisdiction = request.args.get('jurisdiccion')
+    year = request.args.get('year')
+    limit = int(request.args.get('limit') or 50)
+    try:
+        res = precedent_processor.find_cases_for_article(GRAPH, uri, jurisdiction=jurisdiction, year=year, limit=limit)
+        return jsonify({'uri': uri, 'results': res})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@APP.route('/semantic_search', methods=['GET'])
+def semantic_search():
+    q = request.args.get('q')
+    if not q:
+        return jsonify({'error':'q parameter required'}), 400
+    # optional filters
+    year = request.args.get('year')
+    jurisd = request.args.get('jurisdiccion')
+    tipo = request.args.get('tipo')
+    limit = int(request.args.get('limit') or 50)
+    # Basic strategy: combine SPARQL matches on rdfs:label and lo:texto, then score by heuristics
+    # Use sparql_queries.search_laws_by_text for base results (it now targets lo: namespace)
+    try:
+        base_q = sparql_queries.search_laws_by_text(q)
+        res = GRAPH.query(base_q)
+        results = []
+        for row in res:
+            law = str(row.law)
+            title = str(row.title)
+            score = 1.0
+            # boost if jurisdiction matches
+            try:
+                qj = f"PREFIX lo: <http://legalontosystem.pe/ontology#> SELECT ?j WHERE {{ <{law}> lo.aplicaEn ?j }} LIMIT 1"
+                jur = None
+                for r in GRAPH.query(qj):
+                    jur = str(r.j) if hasattr(r, 'j') else (str(r[0]) if len(r)>0 else None)
+                if jurisd and jur and jurisd.lower() in jur.lower():
+                    score *= 1.5
+            except Exception:
+                pass
+            # penalize if law deroga many others? (simple heuristic)
+            try:
+                qd = f"PREFIX lo: <http://legalontosystem.pe/ontology#> SELECT (COUNT(?x) as ?c) WHERE {{ <{law}> lo.deroga ?x }}"
+                for r in GRAPH.query(qd):
+                    c = int(str(r.c)) if r.c else 0
+                    if c>0:
+                        score *= 1.0  # neutral for now, keep placeholder
+            except Exception:
+                pass
+            results.append({ 'law': law, 'title': title, 'score': score })
+        # sort
+        results = sorted(results, key=lambda x: x['score'], reverse=True)[:limit]
+        return jsonify({'query': q, 'results': results})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@APP.route('/link_article_mentions', methods=['POST'])
+def link_article_mentions_endpoint():
+    data = request.json or {}
+    case_uri = data.get('case_uri') or data.get('uri')
+    text = data.get('text')
+    if not case_uri:
+        return jsonify({'error':'case_uri required'}), 400
+    try:
+        res = precedent_processor.link_article_mentions(GRAPH, case_uri, case_text=text, persist=True)
+        # persist graph
+        GRAPH.serialize(destination=WORKING_TTL, format='turtle')
+        return jsonify({'status':'ok','result': res}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @APP.route('/ingest_csv', methods=['POST'])

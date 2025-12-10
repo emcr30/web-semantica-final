@@ -3,9 +3,9 @@ def search_laws_by_text(q: str):
     q_esc = q.replace('"','\\"')
     return f"""
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    PREFIX ex: <http://example.org/legal#>
+    PREFIX lo: <http://legalontosystem.pe/ontology#>
     SELECT ?law ?title WHERE {{
-      ?law a ex:Ley ;
+      ?law a lo:Ley ;
            rdfs:label ?title .
       FILTER regex(str(?title), "{q_esc}", "i")
     }} LIMIT 50
@@ -14,9 +14,9 @@ def search_laws_by_text(q: str):
 
 def example_precedent_query():
     return """
-    PREFIX ex: <http://example.org/legal#>
+    PREFIX lo: <http://legalontosystem.pe/ontology#>
     SELECT ?case ?precedent WHERE {
-      ?case a ex:Caso ; ex.tienePrecedente ?precedent .
+      ?case a lo:Caso ; lo.tienePrecedente ?precedent .
     } LIMIT 100
     """
 
@@ -24,9 +24,9 @@ def example_precedent_query():
 def find_applicable_laws_query(case_uri: str):
     case_uri_esc = case_uri.replace('"','\\"')
     return f"""
-    PREFIX ex: <http://example.org/legal#>
+    PREFIX lo: <http://legalontosystem.pe/ontology#>
     SELECT ?law ?article WHERE {{
-      ?law ex.tieneArticulo ?article .
-      ?article ex.aplicaA <{case_uri_esc}> .
+      ?law lo.tieneArticulo ?article .
+      ?article lo.aplicaACaso <{case_uri_esc}> .
     }}
     """

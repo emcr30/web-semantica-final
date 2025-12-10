@@ -1,5 +1,5 @@
 // App.jsx
-import React, {useState} from 'react'
+import React, {useState, useEffect} from 'react'
 import axios from 'axios'
 import D3Graph from './D3Graph'
 
@@ -20,14 +20,18 @@ export default function App(){
   async function loadLaws(){
     setLoading(true)
     try{
-      const sparql = `PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX ex: <http://example.org/legal#>\nSELECT ?law ?title WHERE { ?law a ex:Ley ; rdfs:label ?title } LIMIT 200`
+      const sparql = `PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX lo: <http://legalontosystem.pe/ontology#>\nSELECT ?law ?title WHERE { ?law a lo:Ley ; rdfs:label ?title } LIMIT 200`
       const res = await axios.post(`${API_BASE}/sparql`, { query: sparql })
+      // Backend returns { head: [...], results: [ { law: '...', title: '...' }, ... ] }
       const rows = (res.data && (res.data.results || res.data.results)) || []
       const n = []
-      rows.forEach((r, idx)=>{
-        const law = r.law || r['?law'] || Object.values(r)[0]
-        const title = r.title || r['?title'] || Object.values(r)[1] || law
-        n.push({ id: law, label: title })
+      rows.forEach((r)=>{
+        if(!r) return
+        // r may be an object mapping varName->value, or an array-like
+        const vals = (typeof r === 'object') ? r : {}
+        const law = vals.law || vals['?law'] || Object.values(vals)[0]
+        const title = vals.title || vals['?title'] || Object.values(vals)[1] || law
+        if(law) n.push({ id: law, label: title || law })
       })
       setNodes(n)
       setLinks([])
@@ -36,6 +40,12 @@ export default function App(){
       alert('Error al cargar las leyes: ' + (err.message || err))
     }finally{ setLoading(false) }
   }
+
+  // load laws on initial mount
+  useEffect(()=>{
+    loadLaws()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function search(){
     if(!query) return loadLaws()
