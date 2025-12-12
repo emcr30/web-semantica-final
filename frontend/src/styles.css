@@ -599,6 +599,365 @@ body {
   max-height: 600px;
 }
 
+/* Module Styles */
+.module-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Graph Controls */
+.graph-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.graph-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: #f0f4f8;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.btn-zoom-reset {
+  padding: 6px 12px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s;
+}
+
+.btn-zoom-reset:hover {
+  background: #2563eb;
+}
+
+/* Case Advisor Styles */
+.keywords-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.keyword-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.reasoning-box {
+  padding: 16px;
+  background: #f5f7fa;
+  border-left: 4px solid #3b82f6;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+.reasoning-box h4 {
+  margin-bottom: 8px;
+  color: #1e40af;
+}
+
+.reasoning-box p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #475569;
+}
+
+.laws-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.law-item {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  transition: all 0.2s;
+}
+
+.law-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+}
+
+.law-title {
+  font-weight: 600;
+  color: #1e3a8a;
+  margin-bottom: 4px;
+}
+
+.law-article {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* Precedent Analyzer Styles */
+.precedents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.precedent-item {
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  transition: all 0.2s;
+}
+
+.precedent-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.precedent-rank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 70px;
+}
+
+.rank-number {
+  font-size: 20px;
+  font-weight: bold;
+  color: #3b82f6;
+}
+
+.rank-score {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.precedent-content h4 {
+  margin-bottom: 4px;
+  color: #1e3a8a;
+}
+
+.precedent-desc {
+  font-size: 13px;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.precedent-meta {
+  font-size: 12px;
+  color: #64748b;
+  margin-right: 16px;
+}
+
+/* Hierarchy Viewer Styles */
+.hierarchy-wrapper {
+  display: flex;
+  justify-content: center;
+  overflow: auto;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.hierarchy-svg {
+  border: 1px solid #e5e7eb;
+  background: white;
+  border-radius: 4px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.stat-box {
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 12px;
+  opacity: 0.9;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: bold;
+}
+
+/* Contradiction Detector Styles */
+.contradiction-item {
+  padding: 16px;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  background: #fef2f2;
+  border-radius: 6px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  margin-bottom: 12px;
+  align-items: start;
+}
+
+.contradiction-severity {
+  display: flex;
+  justify-content: center;
+}
+
+.severity-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.severity-badge.high {
+  background: #fca5a5;
+  color: #7f1d1d;
+}
+
+.severity-badge.medium {
+  background: #fbbf24;
+  color: #78350f;
+}
+
+.severity-badge.low {
+  background: #a7f3d0;
+  color: #064e3b;
+}
+
+.law-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #fecaca;
+  color: #991b1b;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.law-name {
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.contradiction-desc {
+  font-size: 13px;
+  color: #475569;
+  margin-top: 4px;
+}
+
+.contradiction-impact {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #fecaca;
+  font-size: 12px;
+  color: #7f1d1d;
+}
+
+.btn-small {
+  padding: 4px 12px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-small:hover {
+  background: #b91c1c;
+}
+
+.btn-secondary {
+  padding: 8px 16px;
+  background: #6b7280;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #4b5563;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.no-results {
+  text-align: center;
+  padding: 32px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.entities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.entity-group {
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.entity-group h4 {
+  margin-bottom: 12px;
+  color: #1e40af;
+  font-size: 13px;
+}
+
+.entity-group ul {
+  list-style: none;
+  padding: 0;
+}
+
+.entity-group li {
+  padding: 6px 0;
+  font-size: 12px;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.entity-group li:last-child {
+  border-bottom: none;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
   .workspace {
@@ -607,6 +966,11 @@ body {
  
   .details-container {
     max-width: 100%;
+  }
+
+  .precedent-item,
+  .contradiction-item {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -644,6 +1008,10 @@ body {
   .btn-search,
   .btn-load {
     width: 100%;
+  }
+
+  .stat-box {
+    min-width: 120px;
   }
 }
 

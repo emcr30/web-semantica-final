@@ -10,6 +10,12 @@ Endpoints in `backend/app.py` call these functions to return ranked results.
 from rdflib import Graph
 from typing import List, Dict, Any
 import datetime
+import logging
+
+# module logger
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    logging.basicConfig(level=logging.DEBUG)
 
 # scoring weights (tunable)
 WEIGHT_DIRECT_PRECEDENT = 3.0
@@ -26,8 +32,60 @@ def find_cases_for_article(g: Graph, article_uri: str, jurisdiction: str = None,
       3. Combine and score by heuristics: direct precedent > textual match > jurisdiction > recency
     Returns list of dicts: {case: uri, score:float, reasons:[], properties...}
     """
+    logger.debug(f"find_cases_for_article called: article_uri={article_uri} jurisdiction={jurisdiction} year={year} limit={limit}")
     results = {}
-    # 1) direct precedent linkage: if Ontology has :tienePrecedente (law -> precedent) and cases refer to precedents
+    # Determine candidate article URIs: include same article number across versions
+    candidate_articles = [article_uri]
+    try:
+        import re
+        from rdflib import URIRef, Literal
+        from rdflib.namespace import XSD
+        m = re.search(r"(\d+)(?!.*\d)", str(article_uri))
+        if m:
+            art_num_val = int(m.group(1))
+            for s in g.subjects(URIRef('http://legalontosystem.pe/ontology#articleNumber'), Literal(art_num_val, datatype=XSD.integer)):
+                su = str(s)
+                if su not in candidate_articles:
+                    candidate_articles.append(su)
+    except Exception:
+        logger.exception('error building candidate_articles')
+    logger.debug(f"candidate_articles: {candidate_articles}")
+    # 1) direct linkage: cases that explicitly mention the article (lo:mencionaArticulo)
+    try:
+        # query for each candidate article URI (covers other versioned URIs)
+        for art_u in candidate_articles:
+            # sanitize candidate URI to avoid accidental newlines or CRs breaking SPARQL
+            safe_art_u = str(art_u).replace('\n', '').replace('\r', '')
+            logger.debug(f"querying mentions for article candidate: {safe_art_u}")
+            q_cases = f"""
+            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+            PREFIX lo: <http://legalontosystem.pe/ontology#>
+            SELECT ?case ?caseLabel ?date WHERE {{
+                ?case a lo:Caso .
+                OPTIONAL {{ ?case rdfs:label ?caseLabel }}
+                OPTIONAL {{ ?case lo.fechaSentencia ?date }}
+                ?case lo:mencionaArticulo <{safe_art_u}> .
+            }} LIMIT {limit}
+            """
+            logger.debug('q_cases: >>START>>\n' + q_cases + '\n<<END>>')
+            for row in g.query(q_cases):
+                case = str(row.case)
+                logger.debug(f"matched case {case} for article {art_u}")
+                score = results.get(case, {}).get('score', 0)
+                score += WEIGHT_DIRECT_PRECEDENT
+                ent = results.get(case, {})
+                ent.update({
+                    'case': case,
+                    'label': ent.get('label') or (str(row.caseLabel) if row.caseLabel else None),
+                    'score': score,
+                    'date': ent.get('date') or (str(row.date) if row.date else None),
+                })
+                ent['reasons'] = ent.get('reasons', []) + [f'mentions_article_{art_u}']
+                results[case] = ent
+    except Exception:
+        logger.exception('error querying direct mentions')
+
+    # 1b) legacy pattern: if a law explicitly has lo.tienePrecedente linking to precedent nodes
     q_direct = f"""
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
     PREFIX lo: <http://legalontosystem.pe/ontology#>
@@ -36,7 +94,6 @@ def find_cases_for_article(g: Graph, article_uri: str, jurisdiction: str = None,
       OPTIONAL {{ ?case rdfs:label ?caseLabel }}
       OPTIONAL {{ ?case lo.refierePrecedente ?prec . ?prec rdfs:label ?precLabel }}
       OPTIONAL {{ ?case lo.fechaSentencia ?date }}
-      # try to find precedents that are connected to article's law
       ?law lo.tieneArticulo <{article_uri}> .
       ?law lo.tienePrecedente ?prec .
     }} LIMIT {limit}
@@ -44,30 +101,41 @@ def find_cases_for_article(g: Graph, article_uri: str, jurisdiction: str = None,
     try:
         for row in g.query(q_direct):
             case = str(row.case)
-            score = results.get(case, { 'score': 0 })['score'] if case in results else 0
+            logger.debug(f"legacy pattern matched case {case} via prec {row.prec}")
+            score = results.get(case, {}).get('score', 0)
             score += WEIGHT_DIRECT_PRECEDENT
-            results[case] = {
+            ent = results.get(case, {})
+            ent.update({
                 'case': case,
-                'label': str(row.caseLabel) if row.caseLabel else None,
+                'label': ent.get('label') or (str(row.caseLabel) if row.caseLabel else None),
                 'score': score,
                 'matched_prec': str(row.prec) if row.prec else None,
-                'date': str(row.date) if row.date else None,
-                'reasons': results.get(case, {}).get('reasons', []) + ['direct_precedent']
-            }
+                'date': ent.get('date') or (str(row.date) if row.date else None),
+            })
+            ent['reasons'] = ent.get('reasons', []) + ['direct_precedent']
+            results[case] = ent
     except Exception:
-        # query may fail if patterns not present; ignore and continue
         pass
 
     # 2) text-match heuristic: compare article text to case texto (substring / regex)
-    # fetch article text first
+    # fetch article text first: try lo:texto, then fallback to lo:contenido or rdfs:label
     article_text = None
     try:
         q_article = f"""
         PREFIX lo: <http://legalontosystem.pe/ontology#>
-        SELECT ?texto WHERE {{ <{article_uri}> lo.texto ?texto }} LIMIT 1
+        SELECT ?texto ?contenido ?label WHERE {{
+          OPTIONAL {{ <{article_uri}> lo.texto ?texto }}
+          OPTIONAL {{ <{article_uri}> lo.contenido ?contenido }}
+          OPTIONAL {{ <{article_uri}> rdfs:label ?label }}
+        }} LIMIT 1
         """
         for r in g.query(q_article):
-            article_text = str(r.texto)
+            if getattr(r, 'texto', None):
+                article_text = str(r.texto)
+            elif getattr(r, 'contenido', None):
+                article_text = str(r.contenido)
+            elif getattr(r, 'label', None):
+                article_text = str(r.label)
             break
     except Exception:
         article_text = None

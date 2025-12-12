@@ -1,0 +1,93 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix swrl: <http://www.w3.org/2003/11/swrl#> .
+@prefix swrlb: <http://www.w3.org/2003/11/swrlb#> .
+@prefix lo: <http://legalontosystem.pe/ontology#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# SWRL rules for LegalOnto system
+# Location: Ontologia/rules/swr_rules.ttl
+# Purpose: capture common legal reasoning patterns over articles, crimes and penalties
+# Guidelines followed:
+# - Use only existing project classes and properties (lo: prefix)
+# - Keep legal text exact; rules operate at metadata/property level only
+# - Do not introduce external law concepts; avoid assumptions about cases
+
+# ------------------------------------------------------------------
+# Rule 1: If a Crime has a Penalty, assert an explicit RequiresPenalty relation
+# Crime(?c) ^ hasPenalty(?c, ?p) -> RequiresPenalty(?c, ?p)
+# Adds an explicit property to be used by downstream components
+# ------------------------------------------------------------------
+_:r1 a swrl:Imp ;
+  rdfs:comment "Crime with penalty implies RequiresPenalty" ;
+  swrl:body ( 
+    [ a swrl:ClassAtom ; swrl:classPredicate lo:Crime ; swrl:argument1 [ a swrl:Variable ; swrl:varName "c" ] ]
+    [ a swrl:IndividualPropertyAtom ; swrl:propertyPredicate lo:hasPenalty ; swrl:argument1 [ a swrl:Variable ; swrl:varName "c" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "p" ] ]
+  ) ;
+  swrl:head (
+    [ a swrl:IndividualPropertyAtom ; swrl:propertyPredicate lo:RequiresPenalty ; swrl:argument1 [ a swrl:Variable ; swrl:varName "c" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "p" ] ]
+  ) .
+
+# ------------------------------------------------------------------
+# Rule 2: If an Article refers to a Crime that has a Penalty, the Article
+# indirectly requires that penalty (propagate penalty information to the Article)
+# Article(?a) ^ hasCrime(?a, ?c) ^ hasPenalty(?c, ?p) -> articleRequiresPenalty(?a, ?p)
+# ------------------------------------------------------------------
+_:r2 a swrl:Imp ;
+  rdfs:comment "Propagate penalty from crime to containing Article" ;
+  swrl:body (
+    [ a swrl:ClassAtom ; swrl:classPredicate lo:Article ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a" ] ]
+    [ a swrl:IndividualPropertyAtom ; swrl:propertyPredicate lo:hasCrime ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "c" ] ]
+    [ a swrl:IndividualPropertyAtom ; swrl:propertyPredicate lo:hasPenalty ; swrl:argument1 [ a swrl:Variable ; swrl:varName "c" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "p" ] ]
+  ) ;
+  swrl:head (
+    [ a swrl:IndividualPropertyAtom ; swrl:propertyPredicate lo:articleRequiresPenalty ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "p" ] ]
+  ) .
+
+# ------------------------------------------------------------------
+# Rule 3: Identify corresponding articles across different Versions by number
+# Article(?a1) ^ Article(?a2) ^ articleNumber(?a1, ?n) ^ articleNumber(?a2, ?n)
+# ^ belongsTo(?a1, ?v1) ^ belongsTo(?a2, ?v2) ^ swrlb:notEqual(?v1,?v2)
+# -> correspondsTo(?a1, ?a2)
+# Note: uses swrlb:notEqual builtin to ensure different versions
+# ------------------------------------------------------------------
+_:r3 a swrl:Imp ;
+  rdfs:comment "Find articles with same number across different Versions" ;
+  swrl:body (
+    [ a swrl:ClassAtom ; swrl:classPredicate lo:Article ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a1" ] ]
+    [ a swrl:ClassAtom ; swrl:classPredicate lo:Article ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a2" ] ]
+    [ a swrl:DatavaluedPropertyAtom ; swrl:propertyPredicate lo:articleNumber ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a1" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "n" ] ]
+    [ a swrl:DatavaluedPropertyAtom ; swrl:propertyPredicate lo:articleNumber ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a2" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "n" ] ]
+    [ a swrl:IndividualPropertyAtom ; swrl:propertyPredicate lo:belongsTo ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a1" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "v1" ] ]
+    [ a swrl:IndividualPropertyAtom ; swrl:propertyPredicate lo:belongsTo ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a2" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "v2" ] ]
+    [ a swrl:BuiltinAtom ; swrl:builtin swrlb:notEqual ; swrl:arguments ( [ a swrl:Variable ; swrl:varName "v1" ] [ a swrl:Variable ; swrl:varName "v2" ] ) ]
+  ) ;
+  swrl:head (
+    [ a swrl:IndividualPropertyAtom ; swrl:propertyPredicate lo:correspondsTo ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a1" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "a2" ] ]
+  ) .
+
+# ------------------------------------------------------------------
+# Rule 4: If a Version hasArticle an Article, ensure the Article belongsTo that Version
+# Version(?v) ^ hasArticle(?v, ?a) -> belongsTo(?a, ?v)
+# This enforces consistent bidirectional linking between Version and Article
+# ------------------------------------------------------------------
+_:r4 a swrl:Imp ;
+  rdfs:comment "Ensure Article belongsTo Version when Version hasArticle" ;
+  swrl:body (
+    [ a swrl:ClassAtom ; swrl:classPredicate lo:Version ; swrl:argument1 [ a swrl:Variable ; swrl:varName "v" ] ]
+    [ a swrl:IndividualPropertyAtom ; swrl:propertyPredicate lo:hasArticle ; swrl:argument1 [ a swrl:Variable ; swrl:varName "v" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "a" ] ]
+  ) ;
+  swrl:head (
+    [ a swrl:IndividualPropertyAtom ; swrl:propertyPredicate lo:belongsTo ; swrl:argument1 [ a swrl:Variable ; swrl:varName "a" ] ; swrl:argument2 [ a swrl:Variable ; swrl:varName "v" ] ]
+  ) .
+
+# ------------------------------------------------------------------
+# Notes and maintenance
+# - These rules are intentionally conservative and operate only on project
+#   classes/properties (lo: namespace).
+# - Do not change text of articles or other literal content via rules.
+# - When adding additional rules, prefer explicit property assertions and
+#   avoid introducing external vocabularies unless agreed.
+# - Example use-cases covered: propagate penalties, link articles across versions,
+#   and enforce directional consistency between Version and Article.
+# ------------------------------------------------------------------
