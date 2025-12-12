@@ -24,20 +24,48 @@ CORS(APP)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 ONTO_PATH = os.path.join(BASE_DIR, 'Ontologia', 'legalontosystem_peru.ttl')
 WORKING_TTL = os.path.join(BASE_DIR, 'Ontologia', 'legal_working.ttl')
+RESOURCE_BASE = 'http://legalontosystem.pe/resource/'
 
 # Load or create graph
-GRAPH = Graph()
+GRAPHS_BY_FILE = {}
+GRAPH = None  # merged view across files
+
+
+def load_all_ttls(ontologia_dir: str):
+    """Load all .ttl files under `ontologia_dir` as separate Graphs and produce a merged Graph.
+    Returns (merged_graph, graphs_by_file_dict).
+    """
+    from rdflib import Graph
+    graphs = {}
+    merged = Graph()
+    try:
+        if not os.path.exists(ontologia_dir):
+            return merged, graphs
+        for fname in sorted(os.listdir(ontologia_dir)):
+            if not fname.lower().endswith('.ttl'):
+                continue
+            path = os.path.join(ontologia_dir, fname)
+            try:
+                g = Graph()
+                g.parse(path, format='turtle')
+                graphs[fname] = g
+                # merge triples into merged graph
+                for t in g.triples((None, None, None)):
+                    merged.add(t)
+            except Exception as e:
+                print(f"Warning: failed parsing TTL {path}: {e}")
+    except Exception as e:
+        print('load_all_ttls error:', str(e))
+    return merged, graphs
+
+
+# initial load of ontology files into per-file graphs + merged view
 try:
-    GRAPH.parse(ONTO_PATH, format='turtle')
-except Exception:
-    GRAPH = Graph()
-# Also load working data (generated triples) if present so endpoints see existing laws
-try:
-    if os.path.exists(WORKING_TTL):
-        GRAPH.parse(WORKING_TTL, format='turtle')
+    MERGED, FILE_GRAPHS = load_all_ttls(os.path.join(BASE_DIR, 'Ontologia'))
+    GRAPH = MERGED
+    GRAPHS_BY_FILE = FILE_GRAPHS
 except Exception as e:
-    # don't crash the app on startup; log for debugging
-    print(f"Warning: failed loading working TTL '{WORKING_TTL}': {e}")
+    print('Warning: failed initial TTL load:', str(e))
 
 
 def _find_codigo_penal_year(g: Graph, default_year: int = 1991) -> int:
@@ -113,8 +141,36 @@ def ingest():
         law_id = data.get('id', 'LEY_' + str(abs(hash(data.get('text'))) % 100000))
         title = data.get('title', 'Ley importada')
         jurisdiction = data.get('jurisdiccion', 'Peru')
-        rdf_builder.create_law(GRAPH, law_id, title, data['text'], jurisdiction)
-        GRAPH.serialize(destination=WORKING_TTL, format='turtle')
+        # Create the law in a fresh graph and serialize to its own TTL file
+        try:
+            from rdflib import Graph
+            newg = Graph()
+            rdf_builder.create_law(newg, law_id, title, data['text'], jurisdiction)
+            # annotate source filename on the resource if possible (best-effort)
+            try:
+                # use resource base pattern to find subject
+                subj = None
+                for s in newg.subjects(None, None):
+                    if str(s).startswith(RESOURCE_BASE):
+                        subj = s
+                        break
+                if subj is not None:
+                    newg.add((subj, rdflib.URIRef('http://legalontosystem.pe/ontology#sourceFile'), rdflib.Literal(f"{secure_filename(title)}.pdf")))
+            except Exception:
+                pass
+            ts = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+            safe = secure_filename(title) or law_id
+            outname = f"{safe}_{ts}.ttl"
+            outpath = os.path.join(os.path.dirname(__file__), '..', 'Ontologia', outname)
+            newg.serialize(destination=outpath, format='turtle')
+            # reload all TTLs so the new file is included in memory
+            merged, graphs = load_all_ttls(os.path.join(BASE_DIR, 'Ontologia'))
+            global GRAPH, GRAPHS_BY_FILE
+            GRAPH = merged
+            GRAPHS_BY_FILE = graphs
+            return jsonify({'status':'ok','id':law_id,'saved_ttl': outname}), 201
+        except Exception as e:
+            return jsonify({'error':'create_law_failed','message': str(e)}), 500
         # attempt GraphDB upload if configured
         upload_result = None
         try:
@@ -150,12 +206,44 @@ def ingest():
 @APP.route('/search', methods=['GET'])
 def search():
     q = request.args.get('q','')
+    scope = request.args.get('scope','')
     if not q:
         return jsonify({'error':'q parameter required'}), 400
     # Try SPARQL-based search first; if parser fails (rdflib/pyparsing issues),
     # fall back to a graph-scan text search to keep the UI working.
     try:
-        query = sparql_queries.search_laws_by_text(q)
+        # allow searching by scope: 'content' (full text), 'keywords' (search by crime keywords and related cases), or default
+        q_esc = q.replace('"','\\"')
+        if scope == 'keywords':
+            query = f'''
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX lo: <http://legalontosystem.pe/ontology#>
+    SELECT DISTINCT ?law ?title WHERE {{
+      ?law a ?type .
+      FILTER( ?type = lo:Ley || ?type = lo:Articulo )
+      OPTIONAL {{ ?law rdfs:label ?label }}
+      OPTIONAL {{ ?law lo:titulo ?titulo }}
+      OPTIONAL {{ ?law lo:texto ?texto }}
+      BIND(COALESCE(?label, ?titulo, "") AS ?title)
+      FILTER( regex(str(?title), "{q_esc}", "i") || (bound(?texto) && regex(str(?texto), "{q_esc}", "i")) || EXISTS {{ ?law lo:tieneArticulo ?art . ?case lo:mencionaArticulo ?art . ?case lo:delitoLiteral ?dl . FILTER(regex(str(?dl), "{q_esc}", "i")) }} )
+    }} LIMIT 200
+            '''
+        elif scope == 'content':
+            query = f'''
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX lo: <http://legalontosystem.pe/ontology#>
+    SELECT ?law ?title WHERE {{
+      ?law a ?type .
+      FILTER( ?type = lo:Ley || ?type = lo:Articulo )
+      OPTIONAL {{ ?law rdfs:label ?label }}
+      OPTIONAL {{ ?law lo:titulo ?titulo }}
+      OPTIONAL {{ ?law lo:texto ?texto }}
+      BIND(COALESCE(?label, ?titulo, "") AS ?title)
+      FILTER( bound(?texto) && regex(str(?texto), "{q_esc}", "i") )
+    }} LIMIT 200
+            '''
+        else:
+            query = sparql_queries.search_laws_by_text(q)
         res = GRAPH.query(query)
         results = []
         # detect parts (objects of lo:tieneParte)
@@ -282,15 +370,55 @@ def reload_working():
     """
     global GRAPH
     try:
-        newg = Graph()
-        try:
-            newg.parse(ONTO_PATH, format='turtle')
-        except Exception:
-            newg = Graph()
-        if os.path.exists(WORKING_TTL):
-            newg.parse(WORKING_TTL, format='turtle')
-        GRAPH = newg
-        return jsonify({'status':'reloaded'}), 200
+        merged, graphs = load_all_ttls(os.path.join(BASE_DIR, 'Ontologia'))
+        GRAPH = merged
+        global GRAPHS_BY_FILE
+        GRAPHS_BY_FILE = graphs
+        return jsonify({'status':'reloaded','files_loaded': list(graphs.keys())}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@APP.route('/clear_uploaded_data', methods=['POST'])
+def clear_uploaded_data():
+    """Remove RDF resources created under the `resource` namespace (cases/documents/parts)
+    and delete files under the Datos directory. Requires confirm=true in form or JSON.
+    Use with caution.
+    """
+    data = request.json or request.form.to_dict() or {}
+    if str(data.get('confirm')).lower() not in ('1','true','yes'):
+        return jsonify({'error':'confirm_required','message':'Send JSON {"confirm": true} to perform deletion.'}), 400
+    try:
+        # remove triples whose subject is in RESOURCE_BASE
+        subj_to_remove = [s for s in GRAPH.subjects(None, None) if str(s).startswith(RESOURCE_BASE)]
+        removed = 0
+        for s in subj_to_remove:
+            # remove all triples with subject s
+            for t in list(GRAPH.triples((s, None, None))):
+                GRAPH.remove(t)
+                removed += 1
+            # also remove any triples where s is object
+            for t in list(GRAPH.triples((None, None, s))):
+                GRAPH.remove(t)
+                removed += 1
+
+        # delete files under Datos
+        base = os.path.dirname(os.path.dirname(__file__))
+        data_dir = os.path.join(base, 'Datos')
+        deleted_files = []
+        if os.path.exists(data_dir):
+            for fname in os.listdir(data_dir):
+                # only remove typical uploaded files (pdf, txt)
+                if fname.lower().endswith(('.pdf','.txt')):
+                    try:
+                        full = os.path.join(data_dir, fname)
+                        os.remove(full)
+                        deleted_files.append(fname)
+                    except Exception:
+                        pass
+
+        GRAPH.serialize(destination=WORKING_TTL, format='turtle')
+        return jsonify({'status':'cleared','triples_removed': removed, 'files_deleted': deleted_files}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -499,13 +627,24 @@ def precedents_for_article():
         # Accept either an Article URI or a Law URI. If a Law is provided, gather its articles.
         from rdflib import URIRef
         LO = URIRef('http://legalontosystem.pe/ontology#')
-        ART_PROP = URIRef(str(LO) + 'tieneArticulo')
+        # support both vocabulary variants used in the dataset: 'tieneArticulo' and 'hasArticle'
+        ART_PROP_NAMES = ['tieneArticulo', 'hasArticle']
         target_uris = []
         uref = URIRef(uri)
-        # if the provided URI is a law with articles, iterate its articles
+        # if the provided URI is a law/version with articles, iterate its articles
         try:
-            for art in GRAPH.objects(uref, ART_PROP):
-                target_uris.append(str(art))
+            for prop_name in ART_PROP_NAMES:
+                prop = URIRef(str(LO) + prop_name)
+                for art in GRAPH.objects(uref, prop):
+                    target_uris.append(str(art))
+            # dedupe while preserving order
+            seen = set()
+            deduped = []
+            for a in target_uris:
+                if a not in seen:
+                    seen.add(a)
+                    deduped.append(a)
+            target_uris = deduped
         except Exception:
             pass
         # if no articles found, assume the uri is itself an article
@@ -515,19 +654,49 @@ def precedents_for_article():
         print('precedents_for_article: target_uris=', target_uris)
         # aggregate results for all target articles (dedupe by case URI)
         aggregated = {}
-        for t in target_uris:
-            res = precedent_processor.find_cases_for_article(GRAPH, t, jurisdiction=jurisdiction, year=year, limit=limit)
-            for item in (res or []):
-                case = item.get('case')
-                if not case:
-                    continue
-                existing = aggregated.get(case)
-                if not existing:
-                    aggregated[case] = item
-                else:
-                    # merge scores and reasons
-                    existing['score'] = max(existing.get('score',0), item.get('score',0))
-                    existing['reasons'] = list(dict.fromkeys(existing.get('reasons', []) + item.get('reasons', [])))
+        # If we have per-file graphs loaded, run searches in parallel across them for better performance
+        # Always include the live merged GRAPH so newly ingested data is searched,
+        # plus any per-file graphs if available.
+        if isinstance(GRAPHS_BY_FILE, dict) and len(GRAPHS_BY_FILE) > 0:
+            graphs_to_search = list(GRAPHS_BY_FILE.values()) + [GRAPH]
+        else:
+            graphs_to_search = [GRAPH]
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            futures = []
+            with ThreadPoolExecutor(max_workers=min(8, max(1, len(graphs_to_search)))) as ex:
+                for g in graphs_to_search:
+                    for t in target_uris:
+                        futures.append(ex.submit(precedent_processor.find_cases_for_article, g, t, jurisdiction, year, limit))
+                for fut in as_completed(futures):
+                    try:
+                        res = fut.result()
+                    except Exception:
+                        continue
+                    for item in (res or []):
+                        case = item.get('case')
+                        if not case:
+                            continue
+                        existing = aggregated.get(case)
+                        if not existing:
+                            aggregated[case] = item
+                        else:
+                            existing['score'] = max(existing.get('score', 0), item.get('score', 0))
+                            existing['reasons'] = list(dict.fromkeys(existing.get('reasons', []) + item.get('reasons', [])))
+        except Exception:
+            # fallback to single-graph synchronous search
+            for t in target_uris:
+                res = precedent_processor.find_cases_for_article(GRAPH, t, jurisdiction=jurisdiction, year=year, limit=limit)
+                for item in (res or []):
+                    case = item.get('case')
+                    if not case:
+                        continue
+                    existing = aggregated.get(case)
+                    if not existing:
+                        aggregated[case] = item
+                    else:
+                        existing['score'] = max(existing.get('score',0), item.get('score',0))
+                        existing['reasons'] = list(dict.fromkeys(existing.get('reasons', []) + item.get('reasons', [])))
         results = list(aggregated.values())
         print('precedents_for_article: aggregated_count=', len(results))
         # Use NLP-derived crime labels from article text to include matching cases by lo:delitoLiteral.
@@ -587,6 +756,79 @@ def precedents_for_article():
         results = list(aggregated.values())
         results = sorted(results, key=lambda x: x.get('score',0), reverse=True)[:limit]
         return jsonify({'uri': uri, 'target_articles': target_uris, 'results': results})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@APP.route('/cases_overview', methods=['GET'])
+def cases_overview():
+    """Return a flat list of cases/precedents and the articles/laws they are linked to.
+    Useful for debugging data connections.
+    """
+    try:
+        limit = int(request.args.get('limit') or 2000)
+        LO = rdflib.Namespace('http://legalontosystem.pe/ontology#')
+        menciona = rdflib.URIRef(str(LO) + 'mencionaArticulo')
+        caso_t = rdflib.URIRef(str(LO) + 'Caso')
+        prec_t = rdflib.URIRef(str(LO) + 'Precedente')
+        art_num_p = rdflib.URIRef(str(LO) + 'articleNumber')
+        titulo_p = rdflib.URIRef(str(LO) + 'titulo')
+        fecha_p = rdflib.URIRef(str(LO) + 'fechaSentencia')
+        jur_p = rdflib.URIRef(str(LO) + 'jurisdiccionCaso')
+        crime_p = rdflib.URIRef(str(LO) + 'delitoLiteral')
+        file_p = rdflib.URIRef(str(LO) + 'archivoFilename')
+        tiene_art = rdflib.URIRef(str(LO) + 'tieneArticulo')
+        has_art = rdflib.URIRef(str(LO) + 'hasArticle')
+
+        subjects = set()
+        for s in GRAPH.subjects(menciona, None):
+            subjects.add(s)
+        for s in GRAPH.subjects(rdflib.RDF.type, caso_t):
+            subjects.add(s)
+        for s in GRAPH.subjects(rdflib.RDF.type, prec_t):
+            subjects.add(s)
+
+        out = []
+        for s in list(subjects)[:limit]:
+            try:
+                label = GRAPH.value(s, RDFS.label) or GRAPH.value(s, titulo_p)
+                date = GRAPH.value(s, fecha_p)
+                jur = GRAPH.value(s, jur_p)
+                crime = GRAPH.value(s, crime_p)
+                fname = GRAPH.value(s, file_p)
+                arts = []
+                for a in GRAPH.objects(s, menciona):
+                    a_label = GRAPH.value(a, RDFS.label) or GRAPH.value(a, titulo_p)
+                    a_num = GRAPH.value(a, art_num_p)
+                    laws = []
+                    for law in GRAPH.subjects(tiene_art, a):
+                        laws.append({
+                            'uri': str(law),
+                            'label': str(GRAPH.value(law, RDFS.label) or GRAPH.value(law, titulo_p) or '')
+                        })
+                    for law in GRAPH.subjects(has_art, a):
+                        laws.append({
+                            'uri': str(law),
+                            'label': str(GRAPH.value(law, RDFS.label) or GRAPH.value(law, titulo_p) or '')
+                        })
+                    arts.append({
+                        'uri': str(a),
+                        'label': str(a_label) if a_label else None,
+                        'number': str(a_num) if a_num else None,
+                        'laws': laws
+                    })
+                out.append({
+                    'case': str(s),
+                    'label': str(label) if label else None,
+                    'date': str(date) if date else None,
+                    'jurisdiction': str(jur) if jur else None,
+                    'crime': str(crime) if crime else None,
+                    'pdf': str(fname) if fname else None,
+                    'articles': arts
+                })
+            except Exception:
+                continue
+        return jsonify({'count': len(out), 'results': out[:limit]})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

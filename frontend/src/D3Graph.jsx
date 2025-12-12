@@ -3,18 +3,39 @@ import * as d3 from 'd3'
 
 export default function D3Graph({ nodes, links, width = 800, height = 600, onNodeClick }) {
   const ref = useRef()
+  const wrapperRef = useRef()
   const svgRef = useRef()
   const [zoomLevel, setZoomLevel] = useState(1)
   const [selectedNode, setSelectedNode] = useState(null)
+  const [size, setSize] = useState({ width: typeof width === 'number' ? width : 800, height: typeof height === 'number' ? height : 600 })
+
+  // Auto-resize to container
+  useEffect(() => {
+    const el = wrapperRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const cw = Math.max(300, Math.floor(entry.contentRect.width))
+        const ch = Math.max(300, Math.floor(entry.contentRect.height))
+        setSize({ width: cw, height: ch })
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     const svg = d3.select(ref.current)
     svg.selectAll('*').remove()
 
+    const w = size.width || (typeof width === 'number' ? width : 800)
+    const h = size.height || (typeof height === 'number' ? height : 600)
+    svg.attr('width', w).attr('height', h)
+
     if (!nodes || nodes.length === 0) {
       svg.append('text')
-        .attr('x', width / 2)
-        .attr('y', height / 2)
+        .attr('x', w / 2)
+        .attr('y', h / 2)
         .attr('text-anchor', 'middle')
         .attr('fill', '#94a3b8')
         .style('font-size', '16px')
@@ -95,10 +116,12 @@ export default function D3Graph({ nodes, links, width = 800, height = 600, onNod
 
     // Simulación de fuerzas mejorada
     const sim = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(d => d.id).distance(150).strength(0.7))
-    .force('charge', d3.forceManyBody().strength(-300))
-    .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(40))
+    .force('link', d3.forceLink(links).id(d => d.id).distance(160).strength(0.6))
+    .force('charge', d3.forceManyBody().strength(-260))
+    .force('center', d3.forceCenter(w / 2, h / 2))
+    .force('x', d3.forceX(w / 2).strength(0.05))
+    .force('y', d3.forceY(h / 2).strength(0.05))
+    .force('collision', d3.forceCollide().radius(70))
     .alphaDecay(0.15)        // Se estabiliza rápido
     // .velocityDecay(0.4);     // Reduce vibración
 
@@ -264,7 +287,7 @@ export default function D3Graph({ nodes, links, width = 800, height = 600, onNod
 
     svgRef.current = { svg, zoomHandler, g }
     return () => sim.stop()
-  }, [nodes, links, width, height, selectedNode])
+  }, [nodes, links, size.width, size.height, selectedNode])
 
   function resetZoom() {
     if (svgRef.current) {
@@ -299,7 +322,7 @@ export default function D3Graph({ nodes, links, width = 800, height = 600, onNod
   }
 
   return (
-    <div style={{
+    <div ref={wrapperRef} style={{
       width: '100%',
       height: '100%',
       display: 'flex',
@@ -367,8 +390,8 @@ export default function D3Graph({ nodes, links, width = 800, height = 600, onNod
       </div>
       <svg
         ref={ref}
-        width={width}
-        height={height}
+        width={size.width}
+        height={size.height}
         style={{
           flex: 1,
           backgroundColor: '#ffffff',

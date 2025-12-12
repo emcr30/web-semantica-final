@@ -1,23 +1,237 @@
-"""
-Heuristics and SPARQL helpers to find and rank precedent cases for a given Article URI.
-This is a pragmatic implementation using SPARQL queries + simple scoring based on:
- - direct precedent linkage (if precedents are modelled in the graph)
- - text similarity via simple substring/regex matching (rdflib SPARQL FILTER regex)
- - jurisdiction match and recency
+from SPARQLWrapper import SPARQLWrapper, JSON
+import spacy
+import numpy as np
+import re
+from typing import Any, Dict, List
+from rdflib import Graph, URIRef, Namespace
+from rdflib.namespace import RDFS
 
-Endpoints in `backend/app.py` call these functions to return ranked results.
-"""
-from rdflib import Graph
-from typing import List, Dict, Any
-import datetime
-import logging
+# ---------------------------------------------------------
+# CONFIG
+# ---------------------------------------------------------
 
-# module logger
-logger = logging.getLogger(__name__)
-if not logger.handlers:
-    logging.basicConfig(level=logging.DEBUG)
+ENDPOINT = "http://localhost:7200/repositories/legal"
+nlp = spacy.load("es_core_news_md")
 
-# scoring weights (tunable)
+def run_query(q):
+    sparql = SPARQLWrapper(ENDPOINT)
+    sparql.setQuery(q)
+    sparql.setReturnFormat(JSON)
+    return sparql.query().convert()
+
+
+# ---------------------------------------------------------
+# 0. UTILITY: EMBEDDINGS
+# ---------------------------------------------------------
+
+def embed(text):
+    if text is None:
+        return np.zeros(300)
+    return nlp(text).vector
+
+
+def cosine(a, b):
+    if np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0:
+        return 0.0
+    return float(np.dot(a,b) / (np.linalg.norm(a)*np.linalg.norm(b)))
+
+
+# ---------------------------------------------------------
+# 1. EXTRACCIÓN DE ARTÍCULOS CANDIDATOS POR NÚMERO MENCIONADO
+# ---------------------------------------------------------
+
+def extract_candidate_articles(text):
+    numbers = re.findall(r'\b\d{1,3}\b', text)
+    candidates = []
+
+    for n in numbers:
+        q = f"""
+        PREFIX lo: <http://legalontosystem.pe/ontology#>
+        PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+        SELECT ?art ?contenido ?version
+        WHERE {{
+           ?art lo:articleNumber {n}^^xsd:int .
+           OPTIONAL {{ ?art lo:contenido ?contenido . }}
+           OPTIONAL {{ ?art lo:belongsTo ?version . }}
+        }}
+        """
+        res = run_query(q)
+
+        for b in res["results"]["bindings"]:
+            candidates.append({
+                "uri": b["art"]["value"],
+                "contenido": b.get("contenido", {}).get("value", ""),
+                "version": b.get("version", {}).get("value", "")
+            })
+
+    return candidates
+
+
+# ---------------------------------------------------------
+# 2. BUSCAR CASOS SIMILARES SEMÁNTICAMENTE (spaCy)
+# ---------------------------------------------------------
+
+def search_related_cases_semantic(text, k=20):
+    query = f"""
+    PREFIX lo: <http://legalontosystem.pe/ontology#>
+    SELECT ?case ?resumen ?fundamentos ?sentencia
+    WHERE {{
+        ?case a lo:Caso .
+        OPTIONAL {{ ?case lo:resumen ?resumen . }}
+        OPTIONAL {{ ?case lo:fundamentos ?fundamentos . }}
+        OPTIONAL {{ ?case lo:sentenciaTexto ?sentencia . }}
+    }}
+    """
+
+    res = run_query(query)
+
+    text_vec = embed(text)
+    results = []
+
+    for b in res["results"]["bindings"]:
+        resumen = b.get("resumen", {}).get("value", "")
+        fundamentos = b.get("fundamentos", {}).get("value", "")
+        sentencia = b.get("sentencia", {}).get("value", "")
+        combined = " ".join([resumen, fundamentos, sentencia])
+
+        sim = cosine(text_vec, embed(combined))
+        results.append({
+            "uri": b["case"]["value"],
+            "score_semantic": sim,
+            "resumen": resumen,
+            "fundamentos": fundamentos,
+            "sentencia": sentencia
+        })
+
+    results = sorted(results, key=lambda x: x["score_semantic"], reverse=True)
+    return results[:k]
+
+
+# ---------------------------------------------------------
+# 3. EXTRAER ARTÍCULOS MENCIONADOS EN ESOS CASOS
+# ---------------------------------------------------------
+
+def extract_articles_from_cases(case_list):
+    arts = set()
+    for c in case_list:
+        q = f"""
+        PREFIX lo: <http://legalontosystem.pe/ontology#>
+        SELECT ?art
+        WHERE {{
+            <{c['uri']}> lo:mencionaArticulo ?art .
+        }}
+        """
+        res = run_query(q)
+        for b in res["results"]["bindings"]:
+            arts.add(b["art"]["value"])
+    return list(arts)
+
+
+# ---------------------------------------------------------
+# 4. EXTRAER ARTÍCULOS POR PRECEDENTES INVOCADOS
+# ---------------------------------------------------------
+
+def extract_articles_by_precedent(case_list):
+    arts = set()
+
+    for c in case_list:
+        q = f"""
+        PREFIX lo: <http://legalontosystem.pe/ontology#>
+        SELECT ?art
+        WHERE {{
+            <{c['uri']}> lo:invocaPrecedente ?prec .
+            ?art lo:tienePrecedente ?prec .
+        }}
+        """
+        res = run_query(q)
+        for b in res["results"]["bindings"]:
+            arts.add(b["art"]["value"])
+    return list(arts)
+
+
+# ---------------------------------------------------------
+# 5. EMBEDDINGS ENTRE TEXTO DEL CASO Y TEXTO DEL ARTÍCULO
+# ---------------------------------------------------------
+
+def semantic_similarity_with_article(text, article_uri):
+    q = f"""
+    PREFIX lo: <http://legalontosystem.pe/ontology#>
+    SELECT ?cont
+    WHERE {{
+        <{article_uri}> lo:contenido ?cont .
+    }}
+    """
+    res = run_query(q)
+
+    if not res["results"]["bindings"]:
+        return 0.0
+
+    art_text = res["results"]["bindings"][0]["cont"]["value"]
+    return cosine(embed(text), embed(art_text))
+
+
+# ---------------------------------------------------------
+# 6. RANKING HÍBRIDO
+# ---------------------------------------------------------
+
+def recommend_articles(text):
+    # A: Extraer candidatos por número
+    by_number = extract_candidate_articles(text)
+
+    # B: Casos similares semánticos
+    related_cases = search_related_cases_semantic(text)
+
+    # C: Artículos mencionados en esos casos
+    from_cases = extract_articles_from_cases(related_cases)
+
+    # D: Artículos conectados por precedentes
+    by_precedent = extract_articles_by_precedent(related_cases)
+
+    # E: Ranking final combinado
+    score = {}
+
+    # Pesos base
+    W_NUMBER = 3
+    W_CASE = 2
+    W_PRECEDENT = 1
+    W_EMBED = 5
+
+    # A) Artículos mencionados explícitamente por número
+    for a in by_number:
+        score[a["uri"]] = score.get(a["uri"], 0) + W_NUMBER
+
+    # B) Artículos de casos similares
+    for a in from_cases:
+        score[a] = score.get(a, 0) + W_CASE
+
+    # C) Artículos por precedentes
+    for a in by_precedent:
+        score[a] = score.get(a, 0) + W_PRECEDENT
+
+    # D) Similitud semántica artículo – texto del caso
+    for art in list(score.keys()):
+        sem = semantic_similarity_with_article(text, art)
+        score[art] += sem * W_EMBED
+
+    ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
+
+    return {
+        "ranking": ranked,
+        "from_number": by_number,
+        "related_cases": related_cases,
+        "from_cases": from_cases,
+        "from_precedents": by_precedent
+    }
+
+
+# ---------------------------------------------------------
+# 7. FIND CASES FOR ARTICLE (Graph scan, no SPARQL)
+#    Used by backend /precedents_for_article endpoint.
+# ---------------------------------------------------------
+
+LO = Namespace('http://legalontosystem.pe/ontology#')
+
 WEIGHT_DIRECT_PRECEDENT = 3.0
 WEIGHT_TEXT_MATCH = 1.5
 WEIGHT_JURISDICTION = 1.2
@@ -25,196 +239,146 @@ WEIGHT_RECENCY = 1.0
 
 
 def find_cases_for_article(g: Graph, article_uri: str, jurisdiction: str = None, year: int = None, limit: int = 50) -> List[Dict[str, Any]]:
-    """Search graph for cases relevant to an article and return ranked list of cases.
-    Strategy:
-      1. Find cases that refer to precedents linked to the law/article (if such links exist)
-      2. Find cases whose textual description contains substrings from the article text (simple heuristic)
-      3. Combine and score by heuristics: direct precedent > textual match > jurisdiction > recency
-    Returns list of dicts: {case: uri, score:float, reasons:[], properties...}
-    """
-    logger.debug(f"find_cases_for_article called: article_uri={article_uri} jurisdiction={jurisdiction} year={year} limit={limit}")
-    results = {}
-    # Determine candidate article URIs: include same article number across versions
-    candidate_articles = [article_uri]
-    try:
-        import re
-        from rdflib import URIRef, Literal
-        from rdflib.namespace import XSD
-        m = re.search(r"(\d+)(?!.*\d)", str(article_uri))
-        if m:
-            art_num_val = int(m.group(1))
-            for s in g.subjects(URIRef('http://legalontosystem.pe/ontology#articleNumber'), Literal(art_num_val, datatype=XSD.integer)):
-                su = str(s)
-                if su not in candidate_articles:
-                    candidate_articles.append(su)
-    except Exception:
-        logger.exception('error building candidate_articles')
-    logger.debug(f"candidate_articles: {candidate_articles}")
-    # 1) direct linkage: cases that explicitly mention the article (lo:mencionaArticulo)
-    try:
-        # query for each candidate article URI (covers other versioned URIs)
-        for art_u in candidate_articles:
-            # sanitize candidate URI to avoid accidental newlines or CRs breaking SPARQL
-            safe_art_u = str(art_u).replace('\n', '').replace('\r', '')
-            logger.debug(f"querying mentions for article candidate: {safe_art_u}")
-            q_cases = f"""
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            PREFIX lo: <http://legalontosystem.pe/ontology#>
-            SELECT ?case ?caseLabel ?date WHERE {{
-                ?case a lo:Caso .
-                OPTIONAL {{ ?case rdfs:label ?caseLabel }}
-                OPTIONAL {{ ?case lo.fechaSentencia ?date }}
-                ?case lo:mencionaArticulo <{safe_art_u}> .
-            }} LIMIT {limit}
-            """
-            logger.debug('q_cases: >>START>>\n' + q_cases + '\n<<END>>')
-            for row in g.query(q_cases):
-                case = str(row.case)
-                logger.debug(f"matched case {case} for article {art_u}")
-                score = results.get(case, {}).get('score', 0)
-                score += WEIGHT_DIRECT_PRECEDENT
-                ent = results.get(case, {})
-                ent.update({
-                    'case': case,
-                    'label': ent.get('label') or (str(row.caseLabel) if row.caseLabel else None),
-                    'score': score,
-                    'date': ent.get('date') or (str(row.date) if row.date else None),
-                })
-                ent['reasons'] = ent.get('reasons', []) + [f'mentions_article_{art_u}']
-                results[case] = ent
-    except Exception:
-        logger.exception('error querying direct mentions')
+    results: Dict[str, Dict[str, Any]] = {}
+    art_ref = URIRef(article_uri)
 
-    # 1b) legacy pattern: if a law explicitly has lo.tienePrecedente linking to precedent nodes
-    q_direct = f"""
-    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    PREFIX lo: <http://legalontosystem.pe/ontology#>
-    SELECT ?case ?caseLabel ?prec ?precLabel ?date WHERE {{
-      ?case a lo:Caso .
-      OPTIONAL {{ ?case rdfs:label ?caseLabel }}
-      OPTIONAL {{ ?case lo.refierePrecedente ?prec . ?prec rdfs:label ?precLabel }}
-      OPTIONAL {{ ?case lo.fechaSentencia ?date }}
-      ?law lo.tieneArticulo <{article_uri}> .
-      ?law lo.tienePrecedente ?prec .
-    }} LIMIT {limit}
-    """
+    def _norm(u: str) -> str:
+        if not u:
+            return ''
+        s = str(u).strip().replace('\n','').replace('\r','')
+        s = s.replace('http://', 'https://')
+        if s.endswith('/'):
+            s = s[:-1]
+        return s.lower()
+
+    target_norm = _norm(article_uri)
+    target_num = None
+    m = re.search(r"/articulo/(\d+)$", target_norm)
+    if m:
+        target_num = m.group(1)
+
+    # 1) Casos que mencionan directamente el artículo
     try:
-        for row in g.query(q_direct):
-            case = str(row.case)
-            logger.debug(f"legacy pattern matched case {case} via prec {row.prec}")
-            score = results.get(case, {}).get('score', 0)
-            score += WEIGHT_DIRECT_PRECEDENT
-            ent = results.get(case, {})
-            ent.update({
-                'case': case,
-                'label': ent.get('label') or (str(row.caseLabel) if row.caseLabel else None),
-                'score': score,
-                'matched_prec': str(row.prec) if row.prec else None,
-                'date': ent.get('date') or (str(row.date) if row.date else None),
-            })
-            ent['reasons'] = ent.get('reasons', []) + ['direct_precedent']
-            results[case] = ent
+        for case in g.subjects(LO.mencionaArticulo, art_ref):
+            case_uri = str(case)
+            label = g.value(case, RDFS.label)
+            date = g.value(case, LO.fechaSentencia)
+            ent = results.get(case_uri, {})
+            ent['case'] = case_uri
+            if label and not ent.get('label'):
+                ent['label'] = str(label)
+            if date and not ent.get('date'):
+                ent['date'] = str(date)
+            ent['score'] = ent.get('score', 0.0) + WEIGHT_DIRECT_PRECEDENT
+            ent['reasons'] = list(dict.fromkeys(ent.get('reasons', []) + [f'mentions_article_{article_uri}']))
+            results[case_uri] = ent
     except Exception:
         pass
 
-    # 2) text-match heuristic: compare article text to case texto (substring / regex)
-    # fetch article text first: try lo:texto, then fallback to lo:contenido or rdfs:label
+    # 1a) Fallback tolerante: comparar por URI normalizada o por número del artículo
+    try:
+        for case, _, art in g.triples((None, LO.mencionaArticulo, None)):
+            a_norm = _norm(art)
+            matched = False
+            if a_norm == target_norm:
+                matched = True
+            elif target_num:
+                m2 = re.search(r"/articulo/(\d+)$", a_norm)
+                if m2 and m2.group(1) == target_num:
+                    matched = True
+            if not matched:
+                continue
+            case_uri = str(case)
+            label = g.value(case, RDFS.label)
+            date = g.value(case, LO.fechaSentencia)
+            ent = results.get(case_uri, {})
+            ent['case'] = case_uri
+            if label and not ent.get('label'):
+                ent['label'] = str(label)
+            if date and not ent.get('date'):
+                ent['date'] = str(date)
+            ent['score'] = ent.get('score', 0.0) + WEIGHT_DIRECT_PRECEDENT
+            ent['reasons'] = list(dict.fromkeys(ent.get('reasons', []) + ['mentions_article_fuzzy']))
+            results[case_uri] = ent
+    except Exception:
+        pass
+
+    # 1b) Patrón legado: ley -> tieneArticulo/hasArticle -> artículo; ley -> tienePrecedente -> prec; caso -> refierePrecedente -> prec
+    try:
+        for prop_name in ('tieneArticulo', 'hasArticle'):
+            prop = URIRef(str(LO) + prop_name)
+            for law in g.subjects(prop, art_ref):
+                for prec in g.objects(law, LO.tienePrecedente):
+                    for case in g.subjects(LO.refierePrecedente, prec):
+                        case_uri = str(case)
+                        label = g.value(case, RDFS.label)
+                        date = g.value(case, LO.fechaSentencia)
+                        ent = results.get(case_uri, {})
+                        ent['case'] = case_uri
+                        if label and not ent.get('label'):
+                            ent['label'] = str(label)
+                        if date and not ent.get('date'):
+                            ent['date'] = str(date)
+                        ent['score'] = ent.get('score', 0.0) + WEIGHT_DIRECT_PRECEDENT
+                        ent['matched_prec'] = str(prec)
+                        ent['reasons'] = list(dict.fromkeys(ent.get('reasons', []) + ['direct_precedent_via_law']))
+                        results[case_uri] = ent
+    except Exception:
+        pass
+
+    # 2) Heurística simple: si el caso contiene texto con parte del contenido del artículo
+    #    (evitamos consultas costosas; usamos un snippet del artículo)
     article_text = None
     try:
-        q_article = f"""
-        PREFIX lo: <http://legalontosystem.pe/ontology#>
-        SELECT ?texto ?contenido ?label WHERE {{
-          OPTIONAL {{ <{article_uri}> lo.texto ?texto }}
-          OPTIONAL {{ <{article_uri}> lo.contenido ?contenido }}
-          OPTIONAL {{ <{article_uri}> rdfs:label ?label }}
-        }} LIMIT 1
-        """
-        for r in g.query(q_article):
-            if getattr(r, 'texto', None):
-                article_text = str(r.texto)
-            elif getattr(r, 'contenido', None):
-                article_text = str(r.contenido)
-            elif getattr(r, 'label', None):
-                article_text = str(r.label)
-            break
+        txt = g.value(art_ref, LO.texto) or g.value(art_ref, LO.contenido) or g.value(art_ref, RDFS.label)
+        if txt:
+            article_text = str(txt)
     except Exception:
         article_text = None
 
     if article_text:
-        # take short representative phrases to match (first 200 chars)
-        snippet = article_text[:200].replace('"','\\"')
-        q_text = f"""
-        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-        PREFIX lo: <http://legalontosystem.pe/ontology#>
-        SELECT ?case ?caseLabel ?date WHERE {{
-          ?case a lo:Caso .
-          OPTIONAL {{ ?case rdfs:label ?caseLabel }}
-          OPTIONAL {{ ?case lo.texto ?ctext }}
-          FILTER regex(str(?ctext), "{snippet}", "i")
-          OPTIONAL {{ ?case lo.fechaSentencia ?date }}
-        }} LIMIT {limit}
-        """
+        snippet = article_text[:200].lower()
         try:
-            for row in g.query(q_text):
-                case = str(row.case)
-                score = results.get(case, { 'score': 0 })['score'] if case in results else 0
-                score += WEIGHT_TEXT_MATCH
-                ent = results.get(case, {})
-                ent.update({
-                    'case': case,
-                    'label': ent.get('label') or (str(row.caseLabel) if row.caseLabel else None),
-                    'score': score,
-                    'date': ent.get('date') or (str(row.date) if row.date else None),
-                })
-                ent['reasons'] = ent.get('reasons', []) + ['text_match']
-                results[case] = ent
+            for case in set(g.subjects(LO.texto, None)):
+                ctext = g.value(case, LO.texto)
+                if ctext and snippet in str(ctext).lower():
+                    case_uri = str(case)
+                    label = g.value(case, RDFS.label)
+                    date = g.value(case, LO.fechaSentencia)
+                    ent = results.get(case_uri, {})
+                    ent['case'] = case_uri
+                    if label and not ent.get('label'):
+                        ent['label'] = str(label)
+                    if date and not ent.get('date'):
+                        ent['date'] = str(date)
+                    ent['score'] = ent.get('score', 0.0) + WEIGHT_TEXT_MATCH
+                    ent['reasons'] = list(dict.fromkeys(ent.get('reasons', []) + ['text_match']))
+                    results[case_uri] = ent
         except Exception:
             pass
 
-    # 3) jurisdiction & recency boosting and filter by year/jurisdiction if requested
-    final = []
+    # 3) Filtros/boost por jurisdicción y año (si se proporcionan)
+    final: List[Dict[str, Any]] = []
     for case_uri, meta in results.items():
         score = meta.get('score', 0.0)
-        # jurisdiction
         if jurisdiction:
-            # try to query the case jurisdiction and compare (best-effort)
+            jur = g.value(URIRef(case_uri), LO.jurisdiccionCaso)
+            if jur and jurisdiction.lower() in str(jur).lower():
+                score *= WEIGHT_JURISDICTION
+                meta['reasons'] = list(dict.fromkeys(meta.get('reasons', []) + ['jurisdiction_match']))
+            else:
+                # si la jurisdicción solicitada no coincide, descartamos
+                continue
+        # filtro por año exacto si está disponible
+        if year:
             try:
-                q_j = f"""
-                PREFIX lo: <http://legalontosystem.pe/ontology#>
-                SELECT ?jur WHERE {{ <{case_uri}> lo.jurisdiccionCaso ?jur }} LIMIT 1
-                """
-                jur = None
-                for r in g.query(q_j):
-                    jur = str(r.jur) if r.jur else None
-                if jur and jurisdiction.lower() in jur.lower():
-                    score *= WEIGHT_JURISDICTION
-                    meta['reasons'].append('jurisdiction_match')
-                elif jurisdiction and jur and jurisdiction.lower() not in jur.lower():
-                    # if jurisdiction filter requested but doesn't match, skip
+                d = meta.get('date') or g.value(URIRef(case_uri), LO.fechaSentencia)
+                if d and str(d)[:4] != str(year):
                     continue
             except Exception:
                 pass
-        # recency
-        if meta.get('date'):
-            try:
-                y = int(str(meta.get('date'))[:4])
-                age = max(0, datetime.datetime.now().year - y)
-                # boost more recent cases
-                score *= (1.0 + WEIGHT_RECENCY / (1.0 + age))
-            except Exception:
-                pass
-        # filter by year if requested
-        if year:
-            if meta.get('date'):
-                try:
-                    y = int(str(meta.get('date'))[:4])
-                    if y != int(year):
-                        continue
-                except Exception:
-                    pass
         meta['score'] = score
         final.append(meta)
 
-    # sort by score desc
-    final_sorted = sorted(final, key=lambda x: x.get('score', 0), reverse=True)
+    final_sorted = sorted(final, key=lambda x: x.get('score', 0.0), reverse=True)
     return final_sorted[:limit]

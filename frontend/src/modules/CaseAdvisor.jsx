@@ -1,5 +1,6 @@
 import React, {useState} from 'react'
 import axios from 'axios'
+import { Card, Form, Button, Row, Col, Badge, Alert, Spinner, ListGroup } from 'react-bootstrap'
 
 export default function CaseAdvisor({API_BASE}){
   const [caseDescription, setCaseDescription] = useState('')
@@ -31,21 +32,34 @@ export default function CaseAdvisor({API_BASE}){
         reasoning: ''
       }
 
-      // SPARQL query to find laws
+      // SPARQL query to find laws matching keywords (search in label/titulo/texto)
       if(keywords.length > 0){
+        // build a FILTER that matches any keyword in label, titulo or texto
+        const safeKw = kw => kw.replace(/"/g,'\\"').replace(/\n/g,' ').trim()
+        const filters = keywords.map(k => {
+          const sk = safeKw(k)
+          return `(regex(str(?label), "${sk}", "i") || regex(str(?titulo), "${sk}", "i") || regex(str(?texto), "${sk}", "i"))`
+        }).join(' || ')
+
         const sparqlQuery = `
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX lo: <http://legalontosystem.pe/ontology#>
-SELECT ?res ?label ?titulo ?article WHERE {
-  { ?res a lo:Ley } UNION { ?res a lo:Articulo } UNION { ?res a lo:Documento } .
+SELECT ?res ?label ?titulo ?article ?texto WHERE {
+  { ?res a lo:Ley } UNION { ?res a lo:Articulo } .
   OPTIONAL { ?res rdfs:label ?label }
   OPTIONAL { ?res lo:titulo ?titulo }
+  OPTIONAL { ?res lo:texto ?texto }
   OPTIONAL { ?res lo:tieneArticulo ?article }
+  FILTER ( ${filters} )
 } LIMIT 50
         `
         const sparqlRes = await axios.post(`${API_BASE}/sparql`, { query: sparqlQuery })
-        // normalize to objects with .law and .title for UI
-        recs.applicableLaws = (sparqlRes.data.results || []).map(r => ({ law: r.res || r['?res'], title: r.label || r['?label'] || r.titulo || r['?titulo'] })).slice(0,20)
+        // normalize to objects with .law and .title for UI, normalize 'None'/'null'
+        recs.applicableLaws = (sparqlRes.data.results || []).map(r => {
+          let title = r.label || r['?label'] || r.titulo || r['?titulo'] || null
+          if(title && (title.toLowerCase() === 'none' || title.toLowerCase() === 'null')) title = null
+          return ({ law: r.res || r['?res'], title: title })
+        }).slice(0,20)
       }
 
       // Generate reasoning explanation
@@ -68,92 +82,135 @@ Recomendación: Revisa la normativa en orden de relevancia. Las leyes listadas c
   }
 
   return (
-    <div className="module-container">
-      <div className="section-card">
-        <div className="card-header">
-          <h3>📋 Asesor de Casos Jurídicos</h3>
-          <p>Describe un caso y obten recomendaciones de leyes aplicables</p>
-        </div>
-        <div className="card-body">
-          <div className="form-group">
-            <label>Descripción del Caso</label>
-            <textarea
-              value={caseDescription}
-              onChange={e => setCaseDescription(e.target.value)}
-              rows={10}
-              placeholder="Describe el caso jurídico en detalle. Incluye hechos, fechas, partes involucradas, etc."
-              className="form-control textarea"
-            />
-          </div>
-          <button
-            onClick={analyzeCase}
-            disabled={loading}
-            className="btn-submit"
-          >
-            {loading ? 'Analizando...' : 'Analizar y Recomendar'}
-          </button>
-        </div>
-      </div>
+    <div>
+      <Card className="border-0 shadow-sm mb-4">
+        <Card.Header className="bg-primary text-white">
+          <Card.Title className="mb-0">📋 Asesor de Casos Jurídicos</Card.Title>
+          <small>Describe un caso y obtén recomendaciones de leyes aplicables</small>
+        </Card.Header>
+        <Card.Body>
+          <Form onSubmit={e => {e.preventDefault(); analyzeCase()}}>
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-bold">Descripción del Caso</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={10}
+                value={caseDescription}
+                onChange={e => setCaseDescription(e.target.value)}
+                placeholder="Describe el caso jurídico en detalle. Incluye hechos, fechas, partes involucradas, etc."
+                className="border-2 font-monospace"
+                style={{fontSize: '0.9rem'}}
+              />
+              <Form.Text className="text-muted">
+                Proporciona toda la información relevante para un análisis completo
+              </Form.Text>
+            </Form.Group>
+
+            <Button
+              variant="primary"
+              size="lg"
+              type="submit"
+              disabled={loading}
+              className="w-100"
+            >
+              {loading ? (
+                <>
+                  <Spinner animation="border" size="sm" className="me-2" />
+                  Analizando...
+                </>
+              ) : (
+                <>
+                  <span className="me-2">⚡</span>Analizar y Recomendar
+                </>
+              )}
+            </Button>
+          </Form>
+        </Card.Body>
+      </Card>
 
       {extractedEntities && (
-        <div className="section-card">
-          <div className="card-header">
-            <h3>🔍 Entidades Extraídas</h3>
-          </div>
-          <div className="card-body">
-            <div className="entities-grid">
+        <Card className="border-0 shadow-sm mb-4">
+          <Card.Header className="bg-info text-white">
+            <Card.Title className="mb-0">🔍 Entidades Extraídas</Card.Title>
+          </Card.Header>
+          <Card.Body>
+            <Row className="g-4">
               {extractedEntities.articles && extractedEntities.articles.length > 0 && (
-                <div className="entity-group">
-                  <h4>Artículos Mencionados</h4>
-                  <ul>
+                <Col md={6}>
+                  <h5 className="fw-bold mb-3">📑 Artículos Mencionados</h5>
+                  <div className="d-flex flex-wrap gap-2">
                     {extractedEntities.articles.map((art, i) => (
-                      <li key={i}>{art}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {extractedEntities.keywords && extractedEntities.keywords.length > 0 && (
-                <div className="entity-group">
-                  <h4>Conceptos Clave</h4>
-                  <div className="keywords-cloud">
-                    {extractedEntities.keywords.slice(0, 15).map((kw, i) => (
-                      <span key={i} className="keyword-badge">{kw}</span>
+                      <Badge key={i} bg="secondary" pill className="fs-6 px-3 py-2">
+                        Art. {art}
+                      </Badge>
                     ))}
                   </div>
-                </div>
+                </Col>
               )}
-            </div>
-          </div>
-        </div>
+              {extractedEntities.keywords && extractedEntities.keywords.length > 0 && (
+                <Col md={6}>
+                  <h5 className="fw-bold mb-3">🏷️ Conceptos Clave</h5>
+                  <div className="d-flex flex-wrap gap-2">
+                    {extractedEntities.keywords.slice(0, 15).map((kw, i) => (
+                      <Badge key={i} bg="warning" text="dark" pill className="fs-6 px-3 py-2">
+                        {kw}
+                      </Badge>
+                    ))}
+                  </div>
+                </Col>
+              )}
+            </Row>
+          </Card.Body>
+        </Card>
       )}
 
       {recommendations && (
-        <div className="section-card">
-          <div className="card-header">
-            <h3>⚖️ Leyes Recomendadas</h3>
-          </div>
-          <div className="card-body">
-            <div className="reasoning-box">
-              <h4>Fundamentación</h4>
-              <p>{recommendations.reasoning}</p>
-            </div>
+        <>
+          <Card className="border-0 shadow-sm mb-4">
+            <Card.Header className="bg-light border-bottom">
+              <Card.Title className="mb-0">💭 Fundamentación del Análisis</Card.Title>
+            </Card.Header>
+            <Card.Body>
+              <Alert variant="light" className="border">
+                <pre style={{fontSize: '0.9rem', whiteSpace: 'pre-wrap'}}>
+                  {recommendations.reasoning}
+                </pre>
+              </Alert>
+            </Card.Body>
+          </Card>
 
-            {recommendations.applicableLaws.length > 0 ? (
-              <div className="laws-list">
-                {recommendations.applicableLaws.map((law, i) => (
-                  <div key={i} className="law-item">
-                    <div className="law-title">{i+1}. {law.title || law.law}</div>
-                    {law.article && (
-                      <div className="law-article">Artículo: {law.article}</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="no-results">No se encontraron leyes aplicables para este caso</p>
-            )}
-          </div>
-        </div>
+          <Card className="border-0 shadow-sm mb-4">
+            <Card.Header className="bg-success text-white">
+              <Card.Title className="mb-0">⚖️ Leyes y Artículos Recomendados</Card.Title>
+              <Badge bg="light" text="dark" className="float-end">
+                {recommendations.applicableLaws.length} resultado(s)
+              </Badge>
+            </Card.Header>
+            <Card.Body>
+              {recommendations.applicableLaws.length > 0 ? (
+                <ListGroup className="list-group-flush">
+                  {recommendations.applicableLaws.map((item, i) => (
+                    <ListGroup.Item key={i} className="d-flex justify-content-between align-items-start py-3">
+                      <div className="flex-grow-1">
+                        <h6 className="mb-1 fw-bold">{item.title || 'Sin título'}</h6>
+                        <small className="text-muted d-block text-break">
+                          {item.law}
+                        </small>
+                      </div>
+                      <Badge bg="primary" className="ms-2" pill>
+                        {i + 1}
+                      </Badge>
+                    </ListGroup.Item>
+                  ))}
+                </ListGroup>
+              ) : (
+                <Alert variant="warning" className="mb-0">
+                  <span className="me-2">⚠️</span>No se encontraron leyes aplicables con los criterios de búsqueda
+                </Alert>
+              )}
+            </Card.Body>
+          </Card>
+        </>
       )}
     </div>
   )

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import axios from 'axios'
+import { Card, Form, Button, Alert, Spinner, Row, Col } from 'react-bootstrap'
 
 export default function CaseUploader({ API_BASE }){
   const [title, setTitle] = useState('')
@@ -20,7 +21,6 @@ export default function CaseUploader({ API_BASE }){
         fd.append('file', file)
         fd.append('title', title)
         if(fecha) fd.append('fecha', fecha)
-        // if text provided, attach as well
         if(text) fd.append('text', text)
         res = await axios.post(`${API_BASE}/ingest_case`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       } else {
@@ -29,7 +29,6 @@ export default function CaseUploader({ API_BASE }){
         res = await axios.post(`${API_BASE}/ingest_case`, payload)
       }
       setResult(res.data)
-      // notify other components a case was uploaded (so UI can refresh precedents)
       try{
         if (typeof window !== 'undefined' && window.dispatchEvent){
           window.dispatchEvent(new CustomEvent('case:uploaded', { detail: res.data }))
@@ -46,48 +45,101 @@ export default function CaseUploader({ API_BASE }){
   }
 
   return (
-    <div className="module-container">
-      <div className="section-card">
-        <div className="card-header">
-          <h3>📁 Ingresar Caso / Precedente</h3>
-          <p>Sube el texto del caso para que sea analizado y vinculado a artículos mencionados.</p>
-        </div>
-        <div className="card-body">
-          <form onSubmit={handleSubmit}>
-            <div className="form-row">
-              <label>Título</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Título del caso" />
+    <div className="fade-in">
+      <Card className="mb-4">
+        <Card.Header>
+          <Card.Title className="mb-0">Ingresar Caso o Precedente</Card.Title>
+          <small className="text-white-50">Sube el texto del caso para análisis automático y vinculación a artículos</small>
+        </Card.Header>
+        <Card.Body>
+          <Form onSubmit={handleSubmit}>
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-bold">Título del Caso *</Form.Label>
+              <Form.Control
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="Ej: CASACIÓN N.° 412-2022"
+                required
+              />
+              <Form.Text className="text-muted">
+                Identificador único del caso o precedente
+              </Form.Text>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-bold">Fecha de Sentencia</Form.Label>
+              <Form.Control
+                type="date"
+                value={fecha}
+                onChange={e => setFecha(e.target.value)}
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-bold">Texto del Caso *</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={8}
+                value={text}
+                onChange={e => setText(e.target.value)}
+                placeholder="Pega aquí el texto completo del fallo..."
+                required
+              />
+              <Form.Text className="text-muted">
+                Se analizará automáticamente para extraer artículos mencionados
+              </Form.Text>
+            </Form.Group>
+
+            <Form.Group className="mb-4">
+              <Form.Label className="fw-bold">PDF del Caso (Opcional)</Form.Label>
+              <Form.Control
+                type="file"
+                accept="application/pdf"
+                onChange={e => setFile(e.target.files[0])}
+              />
+              {file && (
+                <Alert variant="info" className="mt-2 mb-0 small">
+                  Archivo seleccionado: <strong>{file.name}</strong> ({(file.size / 1024).toFixed(2)} KB)
+                </Alert>
+              )}
+            </Form.Group>
+
+            <div className="d-flex gap-2">
+              <Button
+                variant="primary"
+                type="submit"
+                disabled={loading || !title || !text}
+                size="lg"
+              >
+                {loading ? (
+                  <>
+                    <Spinner size="sm" animation="border" className="me-2" />
+                    Guardando...
+                  </>
+                ) : (
+                  'Guardar Caso'
+                )}
+              </Button>
             </div>
-            <div className="form-row">
-              <label>Fecha (opcional)</label>
-              <input value={fecha} onChange={e => setFecha(e.target.value)} placeholder="YYYY-MM-DD" />
-            </div>
-            <div className="form-row">
-              <label>Texto del caso</label>
-              <textarea value={text} onChange={e => setText(e.target.value)} rows={10} placeholder="Pega aquí el texto del fallo o la URL..." />
-            </div>
-            <div className="form-row">
-              <label>PDF (opcional)</label>
-              <input type="file" accept="application/pdf" onChange={e => setFile(e.target.files[0])} />
-              {file && <div className="file-info">Seleccionado: {file.name}</div>}
-            </div>
-            <div className="form-row">
-              <button type="submit" disabled={loading}>{loading ? 'Guardando...' : 'Guardar caso'}</button>
-            </div>
-          </form>
+          </Form>
 
           {result && (
-            <div className="result-box">
-              <strong>Guardado:</strong>
-              <pre>{JSON.stringify(result, null, 2)}</pre>
-            </div>
+            <Alert variant="success" className="mt-4">
+              <Alert.Heading>Caso guardado exitosamente</Alert.Heading>
+              <hr />
+              <p className="mb-0 small font-monospace">{JSON.stringify(result, null, 2)}</p>
+            </Alert>
           )}
 
           {error && (
-            <div className="error-box">Error: {JSON.stringify(error)}</div>
+            <Alert variant="danger" className="mt-4">
+              <Alert.Heading>Error al procesar</Alert.Heading>
+              <p className="mb-0 small">{JSON.stringify(error)}</p>
+            </Alert>
           )}
-        </div>
-      </div>
+        </Card.Body>
+      </Card>
     </div>
   )
 }

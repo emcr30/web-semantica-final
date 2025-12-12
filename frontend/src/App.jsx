@@ -1,6 +1,6 @@
-// App.jsx
 import React, {useState, useEffect} from 'react'
 import axios from 'axios'
+import { Container, Row, Col, Nav, Navbar, Card, Form, Button, Tab, Alert, Spinner, Badge } from 'react-bootstrap'
 import D3Graph from './D3Graph'
 import CaseAdvisor from './modules/CaseAdvisor'
 import PrecedentAnalyzer from './modules/PrecedentAnalyzer'
@@ -12,6 +12,7 @@ import CaseUploader from './modules/CaseUploader'
 export default function App(){
   const [tab, setTab] = useState('search')
   const [query, setQuery] = useState('')
+  const [searchScope, setSearchScope] = useState('')
   const [nodes, setNodes] = useState([])
   const [links, setLinks] = useState([])
   const [loading, setLoading] = useState(false)
@@ -80,7 +81,8 @@ export default function App(){
   async function search(){
     if(!query) return loadLaws()
     try{
-      const res = await axios.get(`${API_BASE}/search?q=${encodeURIComponent(query)}`)
+      const scopeParam = searchScope ? `&scope=${encodeURIComponent(searchScope)}` : ''
+      const res = await axios.get(`${API_BASE}/search?q=${encodeURIComponent(query)}${scopeParam}`)
       const data = res.data || []
       const filtered = data.filter(item => item.is_part !== true)
       setNodes(filtered.map((r)=>{
@@ -153,291 +155,342 @@ export default function App(){
   }
 
   return (
-    <div className="layout">
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <div className="brand">
-            <div className="brand-icon">⚖️</div>
-            <div className="brand-text">
-              <h1>LegalOnto</h1>
-              <span className="version">v1.0</span>
-            </div>
-          </div>
-        </div>
+    <div className="d-flex flex-column min-vh-100" style={{backgroundColor: '#f5f7fa'}}>
+      {/* Header */}
+      <Navbar bg="dark" sticky="top" className="navbar-expand-lg shadow-sm" data-bs-theme="dark">
+        <Container-fluid className="px-4">
+          <Navbar.Brand href="#" className="fw-bold d-flex align-items-center">
+            <img src="/seman.jpg" alt="LegalOnto System" className="me-2" style={{height: '34px', width: '34px', objectFit: 'cover', borderRadius: '6px'}} />
+            LegalOnto System
+          </Navbar.Brand>
+          <Navbar.Toggle aria-controls="basic-navbar-nav" />
+          <Navbar.Collapse id="basic-navbar-nav" className="justify-content-end">
+            <Nav className="align-items-center">
+              <span className="text-light me-3">Sistema de Asesoria Jurídica Inteligente</span>
+              <Badge bg="success" className="rounded-pill">v1.0</Badge>
+            </Nav>
+          </Navbar.Collapse>
+        </Container-fluid>
+      </Navbar>
 
-        <nav className="sidebar-nav">
-          <button
-            onClick={()=>setTab('search')}
-            className={`nav-item ${tab==='search'?'active':''}`}
-          >
-            <span className="nav-icon">🏠</span>
-            <span>Búsqueda</span>
-          </button>
+      {/* Main Content */}
+      <Container-fluid className="flex-grow-1 py-4 px-4">
+        <Tab.Container activeKey={tab} onSelect={(k) => setTab(k)}>
+          {/* Tabs Navigation */}
+          <Row className="mb-4">
+            <Col>
+              <Nav variant="pills" className="flex-wrap gap-2">
+                <Nav.Item>
+                  <Nav.Link eventKey="search" className="btn-outline-primary">
+                    <span className="me-2">🏠</span>Búsqueda
+                  </Nav.Link>
+                </Nav.Item>
+                <Nav.Item>
+                  <Nav.Link eventKey="advisor" className="btn-outline-primary">
+                    <span className="me-2">📋</span>Asesor de Casos
+                  </Nav.Link>
+                </Nav.Item>
+                <Nav.Item>
+                  <Nav.Link eventKey="precedents" className="btn-outline-primary">
+                    <span className="me-2">⚖️</span>Precedentes
+                  </Nav.Link>
+                </Nav.Item>
+                <Nav.Item>
+                  <Nav.Link eventKey="cases" className="btn-outline-primary">
+                    <span className="me-2">🗂️</span>Casos
+                  </Nav.Link>
+                </Nav.Item>
+                <Nav.Item>
+                  <Nav.Link eventKey="hierarchy" className="btn-outline-primary">
+                    <span className="me-2">🌳</span>Jerarquía
+                  </Nav.Link>
+                </Nav.Item>
+                <Nav.Item>
+                  <Nav.Link eventKey="contradictions" className="btn-outline-primary">
+                    <span className="me-2">⚠️</span>Contradicciones
+                  </Nav.Link>
+                </Nav.Item>
+                <Nav.Item>
+                  <Nav.Link eventKey="ingest" className="btn-outline-primary">
+                    <span className="me-2">📥</span>Datos
+                  </Nav.Link>
+                </Nav.Item>
+                <Nav.Item>
+                  <Nav.Link eventKey="pdf" className="btn-outline-primary">
+                    <span className="me-2">📄</span>Subir PDF
+                  </Nav.Link>
+                </Nav.Item>
+                <Nav.Item>
+                  <Nav.Link eventKey="sparql" className="btn-outline-primary">
+                    <span className="me-2">⚡</span>SPARQL
+                  </Nav.Link>
+                </Nav.Item>
+              </Nav>
+            </Col>
+          </Row>
 
-          <button
-            onClick={()=>setTab('advisor')}
-            className={`nav-item ${tab==='advisor'?'active':''}`}
-          >
-            <span className="nav-icon">📋</span>
-            <span>Asesor de Casos</span>
-          </button>
+          {/* Tab Content */}
+          <Tab.Content>
+            {/* Search Tab */}
+            <Tab.Pane eventKey="search">
+              <div>
+                <Card className="border-0 shadow-sm mb-4">
+                  <Card.Header className="bg-primary text-white">
+                    <Card.Title className="mb-0">Búsqueda y Visualización de Leyes</Card.Title>
+                  </Card.Header>
+                  <Card.Body>
+                    <Form className="mb-3">
+                      <Row className="g-3">
+                        <Col lg={7}>
+                          <Form.Group>
+                            <Form.Control
+                              type="text"
+                              placeholder="Buscar leyes por título o contenido..."
+                              value={query}
+                              onChange={e => setQuery(e.target.value)}
+                              onKeyPress={e => e.key === 'Enter' && search()}
+                              size="lg"
+                              className="border-2"
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col lg={3}>
+                          <Form.Select
+                            value={searchScope}
+                            onChange={e => setSearchScope(e.target.value)}
+                            size="lg"
+                            className="border-2"
+                          >
+                            <option value="">Ámbito: todo</option>
+                            <option value="content">Buscar en contenido</option>
+                            <option value="keywords">Buscar por keywords (delitos)</option>
+                          </Form.Select>
+                        </Col>
+                        <Col lg={2} className="d-flex gap-2">
+                          <Button
+                            variant="primary"
+                            size="lg"
+                            onClick={search}
+                            className="flex-grow-1"
+                          >
+                            <span className="me-2">🔍</span>Buscar
+                          </Button>
+                          <Button
+                            variant="outline-secondary"
+                            size="lg"
+                            onClick={loadLaws}
+                            disabled={loading}
+                          >
+                            {loading ? <Spinner animation="border" size="sm" className="me-2" /> : ''}
+                            Cargar
+                          </Button>
+                        </Col>
+                      </Row>
+                    </Form>
+                  </Card.Body>
+                </Card>
 
-          <button
-            onClick={()=>setTab('precedents')}
-            className={`nav-item ${tab==='precedents'?'active':''}`}
-          >
-            <span className="nav-icon">⚖️</span>
-            <span>Precedentes</span>
-          </button>
-
-          <button
-            onClick={()=>setTab('hierarchy')}
-            className={`nav-item ${tab==='hierarchy'?'active':''}`}
-          >
-            <span className="nav-icon">🌳</span>
-            <span>Jerarquía</span>
-          </button>
-
-          <button
-            onClick={()=>setTab('contradictions')}
-            className={`nav-item ${tab==='contradictions'?'active':''}`}
-          >
-            <span className="nav-icon">⚠️</span>
-            <span>Contradicciones</span>
-          </button>
-
-          <button
-            onClick={()=>setTab('ingest')}
-            className={`nav-item ${tab==='ingest'?'active':''}`}
-          >
-            <span className="nav-icon">📥</span>
-            <span>Datos</span>
-          </button>
-
-          <button
-            onClick={()=>setTab('pdf')}
-            className={`nav-item ${tab==='pdf'?'active':''}`}
-          >
-            <span className="nav-icon">📄</span>
-            <span>Subir PDF</span>
-          </button>
-
-          <button
-            onClick={()=>setTab('cases')}
-            className={`nav-item ${tab==='cases'?'active':''}`}
-          >
-            <span className="nav-icon">🗂️</span>
-            <span>Casos</span>
-          </button>
-
-          <button
-            onClick={()=>setTab('sparql')}
-            className={`nav-item ${tab==='sparql'?'active':''}`}
-          >
-            <span className="nav-icon">⚡</span>
-            <span>SPARQL</span>
-          </button>
-        </nav>
-      </aside>
-
-      <div className="main">
-        <header className="topbar">
-          <div className="topbar-content">
-            <h2 className="page-title">
-              {tab==='search' && 'Búsqueda y Visualización de Leyes'}
-              {tab==='advisor' && 'Asesor Jurídico Inteligente'}
-              {tab==='precedents' && 'Análisis de Precedentes'}
-              {tab==='hierarchy' && 'Estructura del Ordenamiento'}
-              {tab==='contradictions' && 'Detector de Contradicciones'}
-              {tab==='ingest' && 'Gestión de Datos'}
-              {tab==='sparql' && 'Editor SPARQL Avanzado'}
-            </h2>
-            <div className="user-info">
-              <span className="user-name">Sistema Jurídico</span>
-              <div className="user-avatar">SJ</div>
-            </div>
-          </div>
-        </header>
-
-        <main className="content">
-          {tab==='search' && (
-            <>
-              <div className="section-card">
-                <div className="search-container">
-                  <input
-                    type="text"
-                    placeholder="Buscar leyes por título o contenido..."
-                    value={query}
-                    onChange={e=>setQuery(e.target.value)}
-                    onKeyPress={e => e.key === 'Enter' && search()}
-                    className="search-field"
-                  />
-                  <button onClick={search} className="btn-search">
-                    Buscar
-                  </button>
-                  <button
-                    onClick={loadLaws}
-                    disabled={loading}
-                    className="btn-load"
-                  >
-                    {loading ? 'Cargando...' : 'Cargar todas'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="workspace">
-                <div className="graph-container">
-                  <div className="card-header">
-                    <h3>Grafo de Relaciones</h3>
-                  </div>
-                  <div className="card-body">
-                    <D3Graph
-                      nodes={nodes}
-                      links={links}
-                      width={700}
-                      height={500}
-                      onNodeClick={async (n)=>{await fetchEntity(n.id)}}
-                    />
-                  </div>
-                </div>
-
-                <div className="details-container">
-                  <div className="card-header">
-                    <h3>Información Detallada</h3>
-                  </div>
-                  <div className="card-body">
-                    {selected ? (
-                      <div className="entity-details">
-                        <div className="detail-section">
-                          <label>URI del Recurso</label>
-                          <div className="uri-display">{selected.uri}</div>
+                <Row className="g-4">
+                  <Col lg={8}>
+                    <Card className="border-0 shadow-sm h-100">
+                      <Card.Header className="bg-light border-bottom">
+                        <Card.Title className="mb-0">Grafo de Relaciones</Card.Title>
+                      </Card.Header>
+                      <Card.Body className="p-0">
+                        <div style={{height: '500px'}}>
+                          <D3Graph
+                            nodes={nodes}
+                            links={links}
+                            width="100%"
+                            height="500"
+                            onNodeClick={async (n) => {await fetchEntity(n.id)}}
+                          />
                         </div>
-                       
-                        <div className="detail-section">
-                          <label>Propiedades</label>
-                          <div className="properties">
-                            {selected.properties.map((p,i)=>(
-                              <div key={i} className="property-row">
-                                <span className="prop-name">{p.p}</span>
-                                <span className="prop-value">{p.o}</span>
-                              </div>
-                            ))}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+
+                  <Col lg={4}>
+                    <Card className="border-0 shadow-sm h-100">
+                      <Card.Header className="bg-light border-bottom">
+                        <Card.Title className="mb-0">Información Detallada</Card.Title>
+                      </Card.Header>
+                      <Card.Body style={{maxHeight: '600px', overflowY: 'auto'}}>
+                        {selected ? (
+                          <div>
+                            <div className="mb-3">
+                              <small className="text-muted d-block mb-1">URI del Recurso</small>
+                              <code className="d-block p-2 bg-light rounded text-break" style={{fontSize: '0.85rem'}}>
+                                {selected.uri}
+                              </code>
+                            </div>
+                            <hr />
+                            <div>
+                              <small className="text-muted d-block mb-2">Propiedades</small>
+                              {selected.properties.map((p, i) => (
+                                <div key={i} className="mb-2 p-2 border-bottom">
+                                  <small className="text-primary fw-bold d-block">{p.p}</small>
+                                  <small className="text-break">{p.o}</small>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="empty-details">
-                        <div className="empty-icon">📄</div>
-                        <p>Selecciona un elemento del grafo</p>
-                        <span>Haz clic en cualquier nodo para ver sus detalles</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                        ) : (
+                          <div className="text-center py-5 text-muted">
+                            <div style={{fontSize: '3rem'}} className="mb-3">📄</div>
+                            <p>Selecciona un elemento del grafo</p>
+                            <small>Haz clic en cualquier nodo para ver sus detalles</small>
+                          </div>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
               </div>
-            </>
-          )}
+            </Tab.Pane>
 
-          {tab==='advisor' && (
-            <CaseAdvisor API_BASE={API_BASE} />
-          )}
+            {/* Advisor Tab */}
+            <Tab.Pane eventKey="advisor">
+              <CaseAdvisor API_BASE={API_BASE} />
+            </Tab.Pane>
 
-          {tab==='precedents' && (
-            <PrecedentAnalyzer API_BASE={API_BASE} />
-          )}
+            {/* Precedents Tab */}
+            <Tab.Pane eventKey="precedents">
+              <PrecedentAnalyzer API_BASE={API_BASE} />
+            </Tab.Pane>
 
-          {tab==='cases' && (
-            <CaseUploader API_BASE={API_BASE} />
-          )}
+            {/* Cases Tab */}
+            <Tab.Pane eventKey="cases">
+              <CaseUploader API_BASE={API_BASE} />
+            </Tab.Pane>
 
-          {tab==='hierarchy' && (
-            <HierarchyViewer API_BASE={API_BASE} />
-          )}
+            {/* Hierarchy Tab */}
+            <Tab.Pane eventKey="hierarchy">
+              <HierarchyViewer API_BASE={API_BASE} />
+            </Tab.Pane>
 
-          {tab==='contradictions' && (
-            <ContradictionDetector API_BASE={API_BASE} />
-          )}
+            {/* Contradictions Tab */}
+            <Tab.Pane eventKey="contradictions">
+              <ContradictionDetector API_BASE={API_BASE} />
+            </Tab.Pane>
 
-          {tab==='ingest' && (
-            <div className="ingest-layout">
-              <div className="section-card">
-                <div className="card-header">
-                  <h3>Ingesta Manual de Texto</h3>
-                  <p>Agrega documentos legales directamente desde texto</p>
-                </div>
-                <div className="card-body">
-                  <IngestForm onIngest={ingestText} />
-                </div>
-              </div>
+            {/* Ingest Tab */}
+            <Tab.Pane eventKey="ingest">
+              <Row className="g-4">
+                <Col lg={6}>
+                  <Card className="border-0 shadow-sm h-100">
+                    <Card.Header className="bg-primary text-white">
+                      <Card.Title className="mb-0">Ingesta Manual de Texto</Card.Title>
+                      <small>Agrega documentos legales directamente desde texto</small>
+                    </Card.Header>
+                    <Card.Body>
+                      <IngestForm onIngest={ingestText} />
+                    </Card.Body>
+                  </Card>
+                </Col>
 
-              <div className="section-card">
-                <div className="card-header">
-                  <h3>Importación desde CSV</h3>
-                  <p>Carga múltiples documentos desde archivo CSV</p>
-                </div>
-                <div className="card-body">
-                  <CsvIngestForm onIngestCsv={ingestCsv} />
-                </div>
-              </div>
+                <Col lg={6}>
+                  <Card className="border-0 shadow-sm h-100">
+                    <Card.Header className="bg-success text-white">
+                      <Card.Title className="mb-0">Importación desde CSV</Card.Title>
+                      <small>Carga múltiples documentos desde archivo CSV</small>
+                    </Card.Header>
+                    <Card.Body>
+                      <CsvIngestForm onIngestCsv={ingestCsv} />
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
 
               {ingestStatus && (
-                <div className="section-card status-card">
-                  <div className="card-header">
-                    <h3>✓ Resultado de la Operación</h3>
-                  </div>
-                  <div className="card-body">
-                    <pre className="status-output">
+                <Card className="border-0 shadow-sm mt-4 border-left border-success">
+                  <Card.Header className="bg-light border-bottom">
+                    <Card.Title className="mb-0 text-success">✓ Resultado de la Operación</Card.Title>
+                  </Card.Header>
+                  <Card.Body>
+                    <pre className="mb-0" style={{fontSize: '0.85rem', maxHeight: '400px', overflowY: 'auto'}}>
                       {JSON.stringify(ingestStatus, null, 2)}
                     </pre>
-                  </div>
-                </div>
+                  </Card.Body>
+                </Card>
               )}
-            </div>
-          )}
+            </Tab.Pane>
 
-          {tab==='pdf' && (
-            <div className="pdf-upload-layout">
-              <PdfUploader apiBase={API_BASE} />
-            </div>
-          )}
+            {/* PDF Upload Tab */}
+            <Tab.Pane eventKey="pdf">
+              <Card className="border-0 shadow-sm">
+                <Card.Header className="bg-warning text-dark">
+                  <Card.Title className="mb-0">Subir y Procesar PDFs</Card.Title>
+                  <small>Carga documentos en PDF para análisis automático</small>
+                </Card.Header>
+                <Card.Body>
+                  <PdfUploader apiBase={API_BASE} />
+                </Card.Body>
+              </Card>
+            </Tab.Pane>
 
-          {tab==='sparql' && (
-            <div className="sparql-layout">
-              <div className="section-card">
-                <div className="card-header">
-                  <h3>Editor de Consultas SPARQL</h3>
-                  <p>Ejecuta consultas personalizadas sobre la base de conocimiento</p>
-                </div>
-                <div className="card-body">
-                  <textarea
-                    value={sparqlQuery}
-                    onChange={e=>setSparqlQuery(e.target.value)}
-                    rows={12}
-                    placeholder="PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>&#10;SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
-                    className="sparql-editor"
-                  />
-                  <button onClick={doSparql} className="btn-execute">
-                    Ejecutar Consulta
-                  </button>
-                </div>
-              </div>
-             
+            {/* SPARQL Tab */}
+            <Tab.Pane eventKey="sparql">
+              <Row className="g-4">
+                <Col lg={12}>
+                  <Card className="border-0 shadow-sm">
+                    <Card.Header className="bg-info text-white">
+                      <Card.Title className="mb-0">Editor de Consultas SPARQL</Card.Title>
+                      <small>Ejecuta consultas personalizadas sobre la base de conocimiento</small>
+                    </Card.Header>
+                    <Card.Body>
+                      <Form.Group className="mb-3">
+                        <Form.Label className="fw-bold">Consulta SPARQL</Form.Label>
+                        <Form.Control
+                          as="textarea"
+                          rows={12}
+                          value={sparqlQuery}
+                          onChange={e => setSparqlQuery(e.target.value)}
+                          placeholder="PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>&#10;SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
+                          className="font-monospace border-2"
+                          style={{fontSize: '0.9rem'}}
+                        />
+                      </Form.Group>
+                      <Button
+                        variant="info"
+                        size="lg"
+                        onClick={doSparql}
+                        className="w-100"
+                      >
+                        <span className="me-2">⚡</span>Ejecutar Consulta
+                      </Button>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+
               {sparqlResult && (
-                <div className="section-card">
-                  <div className="card-header">
-                    <h3>Resultados</h3>
-                  </div>
-                  <div className="card-body">
-                    <pre className="sparql-output">
-                      {JSON.stringify(sparqlResult, null, 2)}
-                    </pre>
-                  </div>
-                </div>
+                <Row className="g-4 mt-4">
+                  <Col lg={12}>
+                    <Card className="border-0 shadow-sm">
+                      <Card.Header className="bg-light border-bottom">
+                        <Card.Title className="mb-0">Resultados</Card.Title>
+                      </Card.Header>
+                      <Card.Body>
+                        <pre className="mb-0" style={{fontSize: '0.85rem', maxHeight: '600px', overflowY: 'auto'}}>
+                          {JSON.stringify(sparqlResult, null, 2)}
+                        </pre>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
               )}
-            </div>
-          )}
-        </main>
-      </div>
+            </Tab.Pane>
+          </Tab.Content>
+        </Tab.Container>
+      </Container-fluid>
+
+      {/* Footer */}
+      <footer className="bg-dark text-light text-center py-3 mt-5">
+        <Container-fluid>
+          <small>LegalOnto System © 2025 | Sistema Inteligente de Asesoría Jurídica</small>
+        </Container-fluid>
+      </footer>
     </div>
   )
 }
@@ -448,45 +501,56 @@ function IngestForm({onIngest}){
   const [text, setText] = useState('')
  
   return (
-    <div className="ingest-form">
-      <div className="form-group-row">
-        <div className="form-group">
-          <label>ID (opcional)</label>
-          <input
-            type="text"
-            placeholder="Ej: LEY-001"
-            value={id}
-            onChange={e=>setId(e.target.value)}
-            className="form-control"
-          />
-        </div>
-        <div className="form-group">
-          <label>Título de la norma</label>
-          <input
-            type="text"
-            placeholder="Ej: Ley de Protección de Datos Personales"
-            value={title}
-            onChange={e=>setTitle(e.target.value)}
-            className="form-control"
-          />
-        </div>
-      </div>
-     
-      <div className="form-group">
-        <label>Contenido del documento</label>
-        <textarea
+    <Form onSubmit={e => {e.preventDefault(); onIngest(text, title, id)}}>
+      <Form.Group className="mb-3">
+        <Form.Label className="fw-bold">ID de la Norma (opcional)</Form.Label>
+        <Form.Control
+          type="text"
+          placeholder="Ej: LEY-001"
+          value={id}
+          onChange={e => setId(e.target.value)}
+          className="border-2"
+        />
+        <Form.Text className="text-muted">Identificador único para esta norma</Form.Text>
+      </Form.Group>
+
+      <Form.Group className="mb-3">
+        <Form.Label className="fw-bold">Título de la Norma</Form.Label>
+        <Form.Control
+          type="text"
+          placeholder="Ej: Ley de Protección de Datos Personales"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          className="border-2"
+          required
+        />
+        <Form.Text className="text-muted">Nombre completo de la ley o decreto</Form.Text>
+      </Form.Group>
+
+      <Form.Group className="mb-3">
+        <Form.Label className="fw-bold">Contenido del Documento</Form.Label>
+        <Form.Control
+          as="textarea"
+          rows={8}
           placeholder="Pegar aquí el texto completo de la norma legal..."
           value={text}
-          onChange={e=>setText(e.target.value)}
-          rows={10}
-          className="form-control textarea"
+          onChange={e => setText(e.target.value)}
+          className="border-2 font-monospace"
+          style={{fontSize: '0.9rem'}}
+          required
         />
-      </div>
-     
-      <button onClick={()=>onIngest(text,title,id)} className="btn-submit">
-        Procesar e Ingestar
-      </button>
-    </div>
+        <Form.Text className="text-muted">Incluye el texto íntegro del documento</Form.Text>
+      </Form.Group>
+
+      <Button
+        variant="primary"
+        size="lg"
+        type="submit"
+        className="w-100"
+      >
+        <span className="me-2">✓</span>Procesar e Ingestar
+      </Button>
+    </Form>
   )
 }
 
@@ -495,12 +559,16 @@ function CsvIngestForm({onIngestCsv}){
   const [uploading, setUploading] = useState(false)
 
   async function submitFile(){
-    if(!file) return alert('Por favor selecciona un archivo CSV')
+    if(!file) {
+      alert('Por favor selecciona un archivo CSV')
+      return
+    }
     setUploading(true)
     try{
       const fd = new FormData()
       fd.append('file', file)
       await onIngestCsv(fd)
+      setFile(null)
     }catch(err){
       console.error(err)
       alert('Error al subir el archivo: ' + (err?.response?.data || err.message || err))
@@ -510,31 +578,45 @@ function CsvIngestForm({onIngestCsv}){
   }
 
   return (
-    <div className="csv-form">
-      <div className="form-group">
-        <label>Archivo CSV</label>
-        <div className="file-input-wrapper">
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={e=>setFile(e.target.files[0])}
-            className="file-input"
-            id="csv-file"
-          />
-          <label htmlFor="csv-file" className="file-label">
-            {file ? file.name : 'Seleccionar archivo CSV'}
-          </label>
-        </div>
-      </div>
-     
-      <button onClick={submitFile} className="btn-submit" disabled={uploading}>
-        {uploading ? 'Procesando...' : 'Cargar y Procesar CSV'}
-      </button>
-     
-      <div className="help-text">
-        <span className="help-icon">💡</span>
-        <p>Formatos soportados: CSV exportado desde datosabiertos.gob.pe u otras fuentes oficiales</p>
-      </div>
-    </div>
+    <Form onSubmit={e => {e.preventDefault(); submitFile()}}>
+      <Form.Group className="mb-3">
+        <Form.Label className="fw-bold">Archivo CSV</Form.Label>
+        <Form.Control
+          type="file"
+          accept=".csv,text/csv"
+          onChange={e => setFile(e.target.files?.[0])}
+          className="border-2"
+        />
+        <Form.Text className="text-muted">
+          Formatos soportados: CSV exportado desde datosabiertos.gob.pe u otras fuentes oficiales
+        </Form.Text>
+      </Form.Group>
+
+      {file && (
+        <Alert variant="info" className="mb-3">
+          <span className="me-2">📎</span>
+          Archivo seleccionado: <strong>{file.name}</strong> ({(file.size / 1024).toFixed(2)} KB)
+        </Alert>
+      )}
+
+      <Button
+        variant="success"
+        size="lg"
+        type="submit"
+        disabled={!file || uploading}
+        className="w-100"
+      >
+        {uploading ? (
+          <>
+            <Spinner animation="border" size="sm" className="me-2" />
+            Procesando...
+          </>
+        ) : (
+          <>
+            <span className="me-2">⬆️</span>Cargar y Procesar CSV
+          </>
+        )}
+      </Button>
+    </Form>
   )
 }

@@ -1,5 +1,6 @@
 import React, {useState, useEffect} from 'react'
 import axios from 'axios'
+import { Card, Form, Button, Alert, Spinner, Badge, Row, Col, ListGroup } from 'react-bootstrap'
 
 export default function ContradictionDetector({API_BASE}){
   const [contradictions, setContradictions] = useState(null)
@@ -27,7 +28,7 @@ export default function ContradictionDetector({API_BASE}){
         const res = await axios.post(`${API_BASE}/sparql`, { query: sparql })
         const lawsList = (res.data.results || []).map(r => ({
           uri: r.res || r['?res'],
-            title: r.label || r['?label'] || r.titulo || r['?titulo']
+          title: r.label || r['?label'] || r.titulo || r['?titulo']
         }))
         setLaws(lawsList)
       }catch(e){
@@ -60,7 +61,6 @@ export default function ContradictionDetector({API_BASE}){
 
     setLoading(true)
     try{
-      // Query to find derogations and potential conflicts
       const sparql = `
   PREFIX lo: <http://legalontosystem.pe/ontology#>
   PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -105,92 +105,104 @@ export default function ContradictionDetector({API_BASE}){
   }
 
   return (
-    <div className="module-container">
-      <div className="section-card">
-        <div className="card-header">
-          <h3>⚠️ Detector de Contradicciones Normativas</h3>
-          <p>Identifica conflictos, derogaciones e inconsistencias entre normas</p>
-        </div>
-        <div className="card-body">
-          <div className="form-group">
-            <label>Selecciona una Ley para Analizar</label>
-            <div style={{display: 'flex', gap: '8px'}}>
-              <select
-                value={selectedLaw}
-                onChange={e => setSelectedLaw(e.target.value)}
-                className="form-control"
-              >
-                <option value="">-- Elige una norma --</option>
-                {laws.map(law => (
-                  <option key={law.uri} value={law.uri}>
-                    {law.title || law.uri}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={checkLawContradictions}
-                disabled={loading || !selectedLaw}
-                className="btn-submit"
-                style={{flex: '0 0 auto'}}
-              >
-                {loading ? 'Analizando...' : 'Analizar'}
-              </button>
-            </div>
-          </div>
+    <div className="fade-in">
+      <Card className="mb-4">
+        <Card.Header>
+          <Card.Title className="mb-0">Detector de Contradicciones Normativas</Card.Title>
+          <small className="text-white-50">Identifica conflictos, derogaciones e inconsistencias entre leyes</small>
+        </Card.Header>
+        <Card.Body>
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-bold">Selecciona una Ley para Analizar</Form.Label>
+            <Row>
+              <Col md="9">
+                <Form.Select
+                  value={selectedLaw}
+                  onChange={e => setSelectedLaw(e.target.value)}
+                >
+                  <option value="">-- Elige una norma --</option>
+                  {laws.map(law => (
+                    <option key={law.uri} value={law.uri}>
+                      {law.title || law.uri}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Col>
+              <Col md="3">
+                <Button
+                  variant="primary"
+                  onClick={checkLawContradictions}
+                  disabled={loading || !selectedLaw}
+                  className="w-100"
+                >
+                  {loading ? 'Analizando...' : 'Analizar'}
+                </Button>
+              </Col>
+            </Row>
+          </Form.Group>
 
-          <div className="help-text">
-            <p>O visualiza el sistema completo de contradicciones detectadas automáticamente:</p>
-            <button
-              onClick={loadAllContradictions}
-              disabled={loading}
-              className="btn-secondary"
-            >
-              {loading ? 'Cargando...' : 'Cargar Todas las Contradicciones'}
-            </button>
-          </div>
-        </div>
-      </div>
+          <Alert variant="secondary">
+            <Alert.Heading className="h6 mb-2">O ver análisis completo</Alert.Heading>
+            <p className="mb-0">
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={loadAllContradictions}
+                disabled={loading}
+              >
+                {loading ? 'Cargando...' : 'Cargar Todas las Contradicciones'}
+              </Button>
+            </p>
+          </Alert>
+        </Card.Body>
+      </Card>
 
       {contradictions && contradictions.length > 0 && (
-        <div className="section-card">
-          <div className="card-header">
-            <h3>🔍 Conflictos Detectados ({contradictions.length})</h3>
-          </div>
-          <div className="card-body">
-            {contradictions.map((conflict, i) => (
-              <div key={i} className="contradiction-item">
-                <div className="contradiction-severity">
-                  <span className="severity-badge high">Alto</span>
-                </div>
-                <div className="contradiction-content">
-                  <div className="contradiction-laws">
-                    <span className="law-badge">{conflict.relationship || 'conflicto'}</span>
-                    <span className="law-name">{conflict.conflictTitle || conflict.conflictLaw || 'Ley desconocida'}</span>
-                  </div>
-                  {conflict.description && (
-                    <p className="contradiction-desc">{conflict.description}</p>
-                  )}
-                  {conflict.impact && (
-                    <div className="contradiction-impact">
-                      <strong>Impacto:</strong> {conflict.impact}
-                    </div>
-                  )}
-                </div>
-                <div className="contradiction-action">
-                  <button className="btn-small">Ver Detalles</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Card className="mb-4">
+          <Card.Header>
+            <Card.Title className="mb-0">
+              Conflictos Detectados
+              <Badge bg="danger" className="ms-2">{contradictions.length}</Badge>
+            </Card.Title>
+          </Card.Header>
+          <Card.Body>
+            <ListGroup variant="flush">
+              {contradictions.map((conflict, i) => (
+                <ListGroup.Item key={i} className="p-3 mb-2 border-start border-4 border-danger">
+                  <Row className="align-items-start">
+                    <Col md="auto" className="mb-3 mb-md-0">
+                      <Badge bg="danger">CONFLICTO</Badge>
+                    </Col>
+                    <Col>
+                      <div className="d-flex gap-2 align-items-center mb-2">
+                        <Badge bg="warning" text="dark">{conflict.relationship || 'conflicto'}</Badge>
+                        <h6 className="mb-0 text-dark">{conflict.conflictTitle || conflict.conflictLaw || 'Ley desconocida'}</h6>
+                      </div>
+                      {conflict.description && (
+                        <p className="mb-2 text-muted small">{conflict.description}</p>
+                      )}
+                      {conflict.impact && (
+                        <Alert variant="danger" className="mb-0 py-2 px-3 small">
+                          <strong>Impacto:</strong> {conflict.impact}
+                        </Alert>
+                      )}
+                    </Col>
+                    <Col md="auto" className="mt-3 mt-md-0">
+                      <Button variant="outline-danger" size="sm">Ver Detalles</Button>
+                    </Col>
+                  </Row>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+          </Card.Body>
+        </Card>
       )}
 
       {contradictions && contradictions.length === 0 && !loading && (
-        <div className="section-card">
-          <div className="card-body">
-            <p className="no-results">✓ No se detectaron contradicciones en el análisis</p>
-          </div>
-        </div>
+        <Alert variant="success">
+          <Alert.Heading>Sin conflictos</Alert.Heading>
+          <p className="mb-0">No se detectaron contradicciones en el análisis de normas.</p>
+        </Alert>
       )}
     </div>
   )

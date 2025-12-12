@@ -22,10 +22,14 @@ DEFAULT_OVERLAP = 2000
 ARTICLE_RE = re.compile(r'(?:artículo|art\.?|art)\s+(\d+(?:[bis|ter|quater|quinquies]*)?)', re.IGNORECASE)
 LAW_NUMBER_RE = re.compile(r'(?:ley|decreto|norma)\s+(?:n\.?|n°|nº)\s*(\d+(?:\.\d+)*)', re.IGNORECASE)
 KEYWORD_PATTERNS = [
-    r'\b(?:delito|crimen|fraude|robo|homicidio|violencia)\b',
+    # crimes and violence
+    r'\b(?:delito|crimen|fraude|robo|homicidio|violencia|asesin(?:o|ar|ado)?|muerte|matar|apuñalad[oa]?)\b',
+    # contracts / obligations
     r'\b(?:contrato|acuerdo|obligación|responsabilidad)\b',
+    # rights and property
     r'\b(?:derecho|deber|libertad|propiedad)\b',
-    r'\b(?:pena|sanción|multa|prisión)\b',
+    # sanctions and penalties
+    r'\b(?:pena|sanción|multa|prisión|reclusión)\b',
 ]
 
 # Patterns for case metadata
@@ -40,6 +44,8 @@ ORDINAL_MAP = {
     'quinta': 5, 'quinto': 5,
 }
 CRIME_RE = re.compile(r'\bDelit[eo]s?\s+de\s+([\w\s]+?)(?:[\.,\n]|$)', re.IGNORECASE)
+# fallback patterns to detect homicidal acts when text uses phrases like "causándole la muerte" or "provocó la muerte"
+MORTALITY_RE = re.compile(r'\b(?:asesin(?:o|ar|ado)?|homicid(?:io)?|matar|caus(?:a|ó|ando|ándole).{0,40}muerte|provoc(?:ó|ar).{0,40}muerte)\b', re.IGNORECASE)
 
 
 def extract_case_metadata(text):
@@ -88,6 +94,14 @@ def extract_case_metadata(text):
         if lab and lab.lower() not in [x.lower() for x in out['crime_labels']]:
             out['crime_labels'].append(lab)
 
+    # If the text talks about causing death or uses assassination terms, add 'homicidio' as a canonical label
+    try:
+        if MORTALITY_RE.search(text):
+            if 'homicidio' not in [x.lower() for x in out['crime_labels']]:
+                out['crime_labels'].append('homicidio')
+    except Exception:
+        pass
+
     return out
 
 
@@ -135,6 +149,15 @@ def extract_entities(text, max_len=DEFAULT_MAX_LEN, overlap=DEFAULT_OVERLAP):
         matches = re.findall(pattern, text, re.IGNORECASE)
         kws.extend(matches)
     result['keywords'] = list(dict.fromkeys(kws))
+
+    # Ensure homicide/muerte-related terms are included as keywords/crime labels
+    try:
+        if re.search(r'\b(asesin|homicid|muerte|matar|apuñal)\b', text, re.IGNORECASE):
+            # add 'homicidio' as canonical keyword if not present
+            if not any('homicid' in k.lower() or 'muerte' in k.lower() for k in result['keywords']):
+                result['keywords'].append('homicidio')
+    except Exception:
+        pass
 
     # Now process text in chunks for spaCy entities
     seen = set()

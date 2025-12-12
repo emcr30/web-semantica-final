@@ -1,0 +1,904 @@
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix eli: <https://leyes.peru/eli/1991/codigo-penal> .
+@prefix lo: <http://legalontosystem.pe/ontology#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<http://legalontosystem.pe/ontology> a owl:Ontology ;
+    dc:description "Modelo semántico del sistema legal peruano (LegalOntoSystem)" ;
+    dc:title "Ontología Legal Peruana" ;
+    owl:versionInfo "1.0" .
+
+lo:Caso_001 a lo:Caso ;
+    lo:decide lo:TribunalConstitucional ;
+    lo:fechaHechos "2023-10-01"^^xsd:date ;
+    lo:fechaSentencia "2024-03-15"^^xsd:date ;
+    lo:jurisdiccionCaso lo:Peru ;
+    lo:numeroExpediente "EXP-2024-0001" ;
+    lo:refierePrecedente lo:Precedente_001 ;
+    lo:temaCaso lo:TemaAdministrativo .
+
+lo:Civil a owl:Class ;
+    rdfs:label "Civil" ;
+    rdfs:subClassOf lo:TemaLegal .
+
+lo:Constitucional a owl:Class ;
+    rdfs:label "Constitucional" ;
+    rdfs:subClassOf lo:TemaLegal .
+
+lo:DS_179_2004_EF a lo:DecretoSupremo ;
+    lo:afectaTema lo:TemaTributario ;
+    lo:aplicaEn lo:Peru ;
+    lo:fechaPromulgacion "2004-12-08"^^xsd:date ;
+    lo:numeroNorma "D.S. N 179-2004-EF" ;
+    lo:titulo "Texto Unico Ordenado de la Ley del Impuesto a la Renta" ;
+    lo:vigente true .
+
+lo:DecretoLegislativo a owl:Class ;
+    rdfs:label "DecretoLegislativo" ;
+    rdfs:subClassOf lo:NormaLegal .
+
+lo:Distrital a owl:Class ;
+    rdfs:label "Distrital" ;
+    rdfs:subClassOf lo:JurisdiccionTerritorial .
+
+lo:Ley_27444_Art1 a lo:Articulo ;
+    lo:esParteDe lo:Ley_27444 ;
+    lo:texto "La presente Ley tiene por finalidad establecer el regimen juridico aplicable para que la actuacion de la Administracion Publica sirva a la proteccion del interes general..." ;
+    lo:titulo "Articulo 1" .
+
+lo:Ley_Nueva a lo:Ley ;
+    lo:aplicaEn lo:Peru ;
+    lo:deroga lo:Ley_Vieja ;
+    lo:fechaPromulgacion "2020-01-01"^^xsd:date ;
+    lo:numeroNorma "Ley N 8888" ;
+    lo:titulo "Ley Nueva que deroga a Ley Vieja" ;
+    lo:vigente true .
+
+lo:Penal a owl:Class ;
+    rdfs:label "Penal" ;
+    rdfs:subClassOf lo:TemaLegal .
+
+lo:PersonaJuridica a owl:Class ;
+    rdfs:label "PersonaJuridica" ;
+    rdfs:subClassOf lo:EntidadLegal .
+
+lo:PersonaNatural a owl:Class ;
+    rdfs:label "PersonaNatural" ;
+    rdfs:subClassOf lo:EntidadLegal .
+
+lo:Provincial a owl:Class ;
+    rdfs:label "Provincial" ;
+    rdfs:subClassOf lo:JurisdiccionTerritorial .
+
+lo:Regional a owl:Class ;
+    rdfs:label "Regional" ;
+    rdfs:subClassOf lo:JurisdiccionTerritorial .
+
+lo:Resolucion a owl:Class ;
+    rdfs:label "Resolucion" ;
+    rdfs:subClassOf lo:NormaLegal .
+
+lo:TemaLaboral a lo:Laboral ;
+    rdfs:label "Derecho Laboral" .
+
+lo:afectaTema a owl:ObjectProperty ;
+    rdfs:label "afectaTema" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range lo:TemaLegal .
+
+lo:aplicaACaso a owl:ObjectProperty ;
+    rdfs:label "aplicaACaso" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range lo:Caso .
+
+lo:aplicaEn a owl:ObjectProperty ;
+    rdfs:label "aplicaEn" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range lo:JurisdiccionTerritorial .
+
+lo:complementa a owl:ObjectProperty ;
+    rdfs:label "complementa" ;
+    rdfs:comment "Relación de complemento entre normas" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range lo:NormaLegal .
+
+lo:decide a owl:ObjectProperty ;
+    rdfs:label "decide" ;
+    rdfs:domain lo:Caso ;
+    rdfs:range lo:OrganismoEstatal .
+
+lo:deroga a owl:ObjectProperty,
+        owl:TransitiveProperty ;
+    rdfs:label "deroga" ;
+    rdfs:comment "Relación: una norma deroga a otra (transitiva)" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range lo:NormaLegal .
+
+lo:esParteDe a owl:ObjectProperty ;
+    rdfs:label "esParteDe" ;
+    rdfs:domain lo:Articulo ;
+    rdfs:range lo:NormaLegal ;
+    owl:inverseOf lo:tieneArticulo .
+
+lo:esVinculante a owl:DatatypeProperty ;
+    rdfs:label "esVinculante" ;
+    rdfs:domain lo:Precedente ;
+    rdfs:range xsd:boolean .
+
+lo:fechaHechos a owl:DatatypeProperty ;
+    rdfs:label "fechaHechos" ;
+    rdfs:domain lo:Caso ;
+    rdfs:range xsd:date .
+
+lo:fechaPromulgacion a owl:DatatypeProperty ;
+    rdfs:label "fechaPromulgacion" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range xsd:date .
+
+lo:fechaPublicacion a owl:DatatypeProperty ;
+    rdfs:label "fechaPublicacion" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range xsd:date .
+
+lo:fechaSentencia a owl:DatatypeProperty ;
+    rdfs:label "fechaSentencia" ;
+    rdfs:domain lo:Caso ;
+    rdfs:range xsd:date .
+
+lo:fechaVigencia a owl:DatatypeProperty ;
+    rdfs:label "fechaVigencia" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range xsd:date .
+
+lo:fuente a owl:DatatypeProperty ;
+    rdfs:label "fuente" ;
+    rdfs:range xsd:string .
+
+lo:generaPrecedente a owl:ObjectProperty ;
+    rdfs:label "generaPrecedente" ;
+    rdfs:domain lo:Caso ;
+    rdfs:range lo:Precedente .
+
+lo:jurisdiccionCaso a owl:ObjectProperty ;
+    rdfs:label "jurisdiccionCaso" ;
+    rdfs:domain lo:Caso ;
+    rdfs:range lo:JurisdiccionTerritorial .
+
+lo:modifica a owl:ObjectProperty ;
+    rdfs:label "modifica" ;
+    rdfs:comment "Relación de modificación entre normas" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range lo:NormaLegal .
+
+lo:numeroExpediente a owl:DatatypeProperty ;
+    rdfs:label "numeroExpediente" ;
+    rdfs:domain lo:Caso ;
+    rdfs:range xsd:string .
+
+lo:numeroNorma a owl:DatatypeProperty ;
+    rdfs:label "numeroNorma" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range xsd:string .
+
+lo:refierePrecedente a owl:ObjectProperty ;
+    rdfs:label "refierePrecedente" ;
+    rdfs:domain lo:Caso ;
+    rdfs:range lo:Precedente .
+
+lo:reglamentaDe a owl:ObjectProperty ;
+    rdfs:label "reglamentaDe" ;
+    rdfs:comment "Un Decreto Supremo puede reglamentar una Ley" ;
+    rdfs:domain lo:DecretoSupremo ;
+    rdfs:range lo:Ley .
+
+lo:sumilla a owl:DatatypeProperty ;
+    rdfs:label "sumilla" ;
+    rdfs:range xsd:string .
+
+lo:temaCaso a owl:ObjectProperty ;
+    rdfs:label "temaCaso" ;
+    rdfs:domain lo:Caso ;
+    rdfs:range lo:TemaLegal .
+
+lo:texto a owl:DatatypeProperty ;
+    rdfs:label "texto" ;
+    rdfs:range xsd:string .
+
+lo:tienePrecedente a owl:ObjectProperty ;
+    rdfs:label "tienePrecedente" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range lo:Precedente .
+
+lo:titulo a owl:DatatypeProperty ;
+    rdfs:label "titulo" ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:string .
+
+lo:urlOficial a owl:DatatypeProperty ;
+    rdfs:label "urlOficial" ;
+    rdfs:range xsd:string .
+
+lo:vigente a owl:DatatypeProperty ;
+    rdfs:label "vigente" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range xsd:boolean .
+
+<http://legalontosystem.pe/resource/CASE_20251210213954> a lo:Caso,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalCase> ;
+    rdfs:label "Caso de prueba" ;
+    lo:mencionaArticulo <https://leyes.peru/eli/1991/codigo-penal/articulo/107> ;
+    lo:texto "Sentencia de ejemplo que menciona el Artículo 107. Hechos relevantes..." .
+
+lo:Administrativo a owl:Class ;
+    rdfs:label "Administrativo" ;
+    rdfs:subClassOf lo:TemaLegal .
+
+lo:Laboral a owl:Class ;
+    rdfs:label "Laboral" ;
+    rdfs:subClassOf lo:TemaLegal .
+
+lo:Ley_27444 a lo:Ley ;
+    lo:afectaTema lo:TemaAdministrativo ;
+    lo:aplicaEn lo:Peru ;
+    lo:fechaPromulgacion "2001-04-10"^^xsd:date ;
+    lo:fechaPublicacion "2001-04-11"^^xsd:date ;
+    lo:numeroNorma "Ley N 27444" ;
+    lo:titulo "Ley del Procedimiento Administrativo General" ;
+    lo:urlOficial "https://www.gob.pe/institucion/pcm/normas-legales/255951-27444" ;
+    lo:vigente true .
+
+lo:Ley_Vieja a lo:Ley ;
+    lo:aplicaEn lo:Peru ;
+    lo:fechaPromulgacion "1990-01-01"^^xsd:date ;
+    lo:numeroNorma "Ley N 9999" ;
+    lo:titulo "Ley Vieja" ;
+    lo:vigente false .
+
+lo:Nacional a owl:Class ;
+    rdfs:label "Nacional" ;
+    rdfs:subClassOf lo:JurisdiccionTerritorial .
+
+lo:Precedente_001 a lo:Precedente ;
+    lo:esVinculante false ;
+    lo:texto "Resumen de la sentencia..." ;
+    lo:titulo "Precedente Ejemplo 001" .
+
+lo:TemaTributario a lo:Tributario ;
+    rdfs:label "Derecho Tributario" .
+
+lo:TribunalConstitucional a lo:OrganismoEstatal ;
+    rdfs:label "Tribunal Constitucional" ;
+    lo:titulo "Tribunal Constitucional del Peru" .
+
+lo:Tributario a owl:Class ;
+    rdfs:label "Tributario" ;
+    rdfs:subClassOf lo:TemaLegal .
+
+lo:tieneArticulo a owl:ObjectProperty ;
+    rdfs:label "tieneArticulo" ;
+    rdfs:domain lo:NormaLegal ;
+    rdfs:range lo:Articulo .
+
+lo:DecretoSupremo a owl:Class ;
+    rdfs:label "DecretoSupremo" ;
+    rdfs:subClassOf lo:NormaLegal .
+
+lo:OrganismoEstatal a owl:Class ;
+    rdfs:label "OrganismoEstatal" ;
+    rdfs:subClassOf lo:EntidadLegal .
+
+lo:TemaAdministrativo a lo:Administrativo ;
+    rdfs:label "Derecho Administrativo" .
+
+lo:EntidadLegal a owl:Class ;
+    rdfs:label "EntidadLegal" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/1> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 1: Principio de legalidad" ;
+    lo:articleNumber 1 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "1" ;
+    lo:contenido "Nadie será sancionado por un acto no previsto como delito o falta por la ley vigente al momento de su comisión, ni sometido a pena o medida de seguridad que no estén establecidas en ella." ;
+    lo:esParteDe eli: ;
+    lo:libro "Primero" ;
+    lo:numero "1"^^xsd:int ;
+    lo:perteneceA eli: ;
+    lo:titulo "Principio de legalidad" ;
+    lo:titulo_capitulo "Principio de Legalidad" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/106> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 106: Parricidio" ;
+    lo:articleNumber 106 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "1" ;
+    lo:contenido "El que, a sabiendas, mata a su ascendiente, descendiente, cónyuge o hermano, será punido con pena privativa de libertad no menor de quince años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "106"^^xsd:int ;
+    lo:pena "No menor de 15 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Parricidio" ;
+    lo:titulo_capitulo "Delitos contra la vida" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/108> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 108: Homicidio calificado" ;
+    lo:articleNumber 108 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "1" ;
+    lo:contenido "Será reprimido con pena privativa de libertad no menor de veinticinco años, el que mata a otro concurriendo cualquiera de las circunstancias siguientes: alevosía, precio remuneratorio, furor u odio, facilitar otro delito o gran crueldad." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "108"^^xsd:int ;
+    lo:pena "No menor de 25 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Homicidio calificado" ;
+    lo:titulo_capitulo "Delitos contra la vida" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/109> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 109: Homicidio por emoción violenta" ;
+    lo:articleNumber 109 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "1" ;
+    lo:contenido "El que mata a otro, en estado de ira o intenso dolor causado por actos injustos e inmediatos del occiso, será punido con pena privativa de libertad no menor de tres ni mayor de cinco años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "109"^^xsd:int ;
+    lo:pena "No menor de 3 ni mayor de 5 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Homicidio por emoción violenta" ;
+    lo:titulo_capitulo "Delitos contra la vida" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/110> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 110: Inducción al suicidio" ;
+    lo:articleNumber 110 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "1" ;
+    lo:contenido "El que, deliberadamente, induce a otro al suicidio o lo ayuda a cometerlo, será reprimido con pena privativa de libertad no menor de cinco ni mayor de diez años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "110"^^xsd:int ;
+    lo:pena "No menor de 5 ni mayor de 10 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Inducción al suicidio" ;
+    lo:titulo_capitulo "Delitos contra la vida" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/121> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 121: Lesión grave" ;
+    lo:articleNumber 121 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "2" ;
+    lo:contenido "El que causa a otro daño grave en el cuerpo o en la salud será reprimido con pena privativa de libertad no menor de cuatro ni mayor de ocho años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "121"^^xsd:int ;
+    lo:pena "No menor de 4 ni mayor de 8 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Lesión grave" ;
+    lo:titulo_capitulo "Delitos contra la integridad corporal" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/122> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 122: Lesión leve" ;
+    lo:articleNumber 122 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "2" ;
+    lo:contenido "El que causa a otro un daño en el cuerpo o en la salud que requiera más de diez días de asistencia o descanso será reprimido con pena privativa de libertad no mayor de dos años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "122"^^xsd:int ;
+    lo:perteneceA eli: ;
+    lo:titulo "Lesión leve" ;
+    lo:titulo_capitulo "Delitos contra la integridad corporal" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/131> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 131: Injuria" ;
+    lo:articleNumber 131 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "4" ;
+    lo:contenido "El que ofende el honor, la reputación o la dignidad de una persona es punible con pena privativa de libertad no mayor de un año o con sesenta días multa." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "131"^^xsd:int ;
+    lo:perteneceA eli: ;
+    lo:titulo "Injuria" ;
+    lo:titulo_capitulo "Delitos contra el honor" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/132> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 132: Difamación" ;
+    lo:articleNumber 132 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "4" ;
+    lo:contenido "El que, ante terceros, imputa a una persona la comisión de un hecho delictuoso que afecta su honor, siendo la imputación falsa, es punible con pena privativa de libertad no mayor de un año o con ciento veinte días multa." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "132"^^xsd:int ;
+    lo:perteneceA eli: ;
+    lo:titulo "Difamación" ;
+    lo:titulo_capitulo "Delitos contra el honor" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/149> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 149: Violación sexual" ;
+    lo:articleNumber 149 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "3" ;
+    lo:contenido "El que tiene acceso carnal con una persona por violencia o grave amenaza es punible con pena privativa de libertad no menor de catorce ni mayor de veinte años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "149"^^xsd:int ;
+    lo:pena "No menor de 14 ni mayor de 20 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Violación sexual" ;
+    lo:titulo_capitulo "Delitos contra la libertad" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/150> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 150: Violación de menor de edad" ;
+    lo:articleNumber 150 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "3" ;
+    lo:contenido "Cuando la víctima tiene menos de catorce años, la pena será no menor de dieciséis ni mayor de veinticuatro años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "150"^^xsd:int ;
+    lo:pena "No menor de 16 ni mayor de 24 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Violación de menor de edad" ;
+    lo:titulo_capitulo "Delitos contra la libertad" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/151> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 151: Actos contra el pudor" ;
+    lo:articleNumber 151 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "3" ;
+    lo:contenido "El que, sin propósito de llegar a la cópula, ejecuta sobre otra persona un acto contra el pudor o la hace ejecutar, será reprimido con pena privativa de libertad no menor de tres ni mayor de cinco años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "151"^^xsd:int ;
+    lo:pena "No menor de 3 ni mayor de 5 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Actos contra el pudor" ;
+    lo:titulo_capitulo "Delitos contra la libertad" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/152> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 152: Rapto" ;
+    lo:articleNumber 152 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "3" ;
+    lo:contenido "El que sustrae a una persona del lugar donde la autoridad ha determinado que debe permanecer será reprimido con pena privativa de libertad no menor de dos ni mayor de cuatro años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "152"^^xsd:int ;
+    lo:pena "No menor de 2 ni mayor de 4 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Rapto" ;
+    lo:titulo_capitulo "Delitos contra la libertad" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/153> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 153: Sustracción de menores" ;
+    lo:articleNumber 153 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "3" ;
+    lo:contenido "El que sustrae a un menor de dieciocho años del lugar donde la autoridad lo ha puesto será reprimido con pena privativa de libertad no menor de dos ni mayor de cuatro años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "153"^^xsd:int ;
+    lo:pena "No menor de 2 ni mayor de 4 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Sustracción de menores" ;
+    lo:titulo_capitulo "Delitos contra la libertad" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/185> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 185: Hurto" ;
+    lo:articleNumber 185 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "5" ;
+    lo:contenido "El que sustrae un bien mueble, total o parcialmente ajeno, para aprovecharse ilícitamente del mismo, sustrayéndolo del lugar en que se encuentra, será reprimido con pena privativa de libertad no menor de uno ni mayor de tres años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "185"^^xsd:int ;
+    lo:pena "No menor de 1 ni mayor de 3 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Hurto" ;
+    lo:titulo_capitulo "Delitos contra el patrimonio" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/186> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 186: Hurto agravado" ;
+    lo:articleNumber 186 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "5" ;
+    lo:contenido "La pena será no menor de tres ni mayor de seis años si el hurto es cometido: en casa habitada, durante la noche, en lugar desolado, mediante destreza o artificios, o con destrozo del bien." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "186"^^xsd:int ;
+    lo:pena "No menor de 3 ni mayor de 6 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Hurto agravado" ;
+    lo:titulo_capitulo "Delitos contra el patrimonio" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/188> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 188: Robo" ;
+    lo:articleNumber 188 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "5" ;
+    lo:contenido "El que se apodera ilícitamente de un bien mueble, empleando violencia contra la persona o amenazándola con un peligro inminente para su vida o integridad física, será reprimido con pena privativa de libertad no menor de tres ni mayor de ocho años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "188"^^xsd:int ;
+    lo:pena "No menor de 3 ni mayor de 8 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Robo" ;
+    lo:titulo_capitulo "Delitos contra el patrimonio" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/189> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 189: Robo agravado" ;
+    lo:articleNumber 189 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "5" ;
+    lo:contenido "La pena será no menor de cinco ni mayor de quince años si el robo es cometido: en casa habitada, durante la noche, a mano armada, en lugar desolado o en vía pública." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "189"^^xsd:int ;
+    lo:pena "No menor de 5 ni mayor de 15 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Robo agravado" ;
+    lo:titulo_capitulo "Delitos contra el patrimonio" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/196> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 196: Estafa" ;
+    lo:articleNumber 196 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "5" ;
+    lo:contenido "El que, mediante engaño, procura para sí o para otro un provecho ilícito en perjuicio ajeno será reprimido con pena privativa de libertad no menor de uno ni mayor de tres años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "196"^^xsd:int ;
+    lo:pena "No menor de 1 ni mayor de 3 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Estafa" ;
+    lo:titulo_capitulo "Delitos contra el patrimonio" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/2> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 2: Irretroactividad de la ley penal" ;
+    lo:articleNumber 2 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "1" ;
+    lo:contenido "La ley penal aplicable es la vigente al momento de la comisión del delito. Sin embargo, se aplicará la ley posterior si es más favorable al reo." ;
+    lo:esParteDe eli: ;
+    lo:libro "Primero" ;
+    lo:numero "2"^^xsd:int ;
+    lo:perteneceA eli: ;
+    lo:titulo "Irretroactividad de la ley penal" ;
+    lo:titulo_capitulo "Principio de Legalidad" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/200> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 200: Apropiación ilícita" ;
+    lo:articleNumber 200 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "5" ;
+    lo:contenido "El que, en su calidad de depositario o por otra razón contractual, tiene obligación de custodiar o administrar bienes ajenos, se apropie de éstos o los distraiga será reprimido con pena privativa de libertad no menor de dos ni mayor de cuatro años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "200"^^xsd:int ;
+    lo:pena "No menor de 2 ni mayor de 4 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Apropiación ilícita" ;
+    lo:titulo_capitulo "Delitos contra el patrimonio" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/3> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 3: Ambito de validez espacial" ;
+    lo:articleNumber 3 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "2" ;
+    lo:contenido "La ley penal peruana se aplica: 1. Por delitos cometidos en el territorio de la República. 2. Por delitos cometidos a bordo de naves o aeronaves peruanas. 3. En los demás casos establecidos por las normas de Derecho Internacional." ;
+    lo:esParteDe eli: ;
+    lo:libro "Primero" ;
+    lo:numero "3"^^xsd:int ;
+    lo:perteneceA eli: ;
+    lo:titulo "Ambito de validez espacial" ;
+    lo:titulo_capitulo "Ambito de Validez" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/337> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 337: Incumplimiento de deberes" ;
+    lo:articleNumber 337 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "20" ;
+    lo:contenido "El que infringe las normas establecidas por ley o sentencia, por causa justificada o sin ella, será reprimido con pena privativa de libertad no mayor de un año o con sesenta días multa." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "337"^^xsd:int ;
+    lo:perteneceA eli: ;
+    lo:titulo "Incumplimiento de deberes" ;
+    lo:titulo_capitulo "Delitos contra el orden público" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/338> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 338: Desorden público" ;
+    lo:articleNumber 338 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "20" ;
+    lo:contenido "El que mediante tumulto o golpes causa disturbios en lugares públicos será reprimido con pena privativa de libertad no mayor de un año." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "338"^^xsd:int ;
+    lo:perteneceA eli: ;
+    lo:titulo "Desorden público" ;
+    lo:titulo_capitulo "Delitos contra el orden público" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/376> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 376: Fraude procesal" ;
+    lo:articleNumber 376 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "22" ;
+    lo:contenido "El que, siendo parte en un proceso o tercero, presenta documentos falsos, propone testigos falsos o propone peritos falsos será reprimido con pena privativa de libertad no menor de dos ni mayor de seis años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "376"^^xsd:int ;
+    lo:pena "No menor de 2 ni mayor de 6 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Fraude procesal" ;
+    lo:titulo_capitulo "Delitos contra la administración pública" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/397> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 397: Cohecho pasivo" ;
+    lo:articleNumber 397 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "22" ;
+    lo:contenido "El funcionario o servidor público que, directa o indirectamente, solicita, acepta o recibe dinero, bienes o cualquier otra ventaja o promesa, para realizar, retardar u omitir un acto de su función será reprimido con pena privativa de libertad no menor de cinco ni mayor de quince años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "397"^^xsd:int ;
+    lo:pena "No menor de 5 ni mayor de 15 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Cohecho pasivo" ;
+    lo:titulo_capitulo "Delitos contra la administración pública" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/398> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 398: Cohecho activo" ;
+    lo:articleNumber 398 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "22" ;
+    lo:contenido "El que ofrece, promete o da dinero, bienes o cualquier otra ventaja al funcionario o servidor público será reprimido con pena privativa de libertad no menor de tres ni mayor de diez años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "398"^^xsd:int ;
+    lo:pena "No menor de 3 ni mayor de 10 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Cohecho activo" ;
+    lo:titulo_capitulo "Delitos contra la administración pública" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/399> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 399: Malversación de fondos públicos" ;
+    lo:articleNumber 399 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "22" ;
+    lo:contenido "El funcionario o servidor público que apropia, sustrae o consume en su provecho fondos o bienes públicos será reprimido con pena privativa de libertad no menor de cinco ni mayor de quince años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "399"^^xsd:int ;
+    lo:pena "No menor de 5 ni mayor de 15 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Malversación de fondos públicos" ;
+    lo:titulo_capitulo "Delitos contra la administración pública" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/400> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 400: Peculado" ;
+    lo:articleNumber 400 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "22" ;
+    lo:contenido "El funcionario o servidor público que, en ejercicio de sus funciones, se apropia de bienes del Estado será reprimido con pena privativa de libertad no menor de cinco ni mayor de diez años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "400"^^xsd:int ;
+    lo:pena "No menor de 5 ni mayor de 10 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Peculado" ;
+    lo:titulo_capitulo "Delitos contra la administración pública" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/427> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 427: Falsificación de documentos públicos" ;
+    lo:articleNumber 427 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "23" ;
+    lo:contenido "El que falsifica, altera o falsifica la firma de un documento público será reprimido con pena privativa de libertad no menor de tres ni mayor de diez años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "427"^^xsd:int ;
+    lo:pena "No menor de 3 ni mayor de 10 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Falsificación de documentos públicos" ;
+    lo:titulo_capitulo "Delitos contra la fe pública" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/428> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 428: Falsificación de documentos privados" ;
+    lo:articleNumber 428 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "23" ;
+    lo:contenido "El que falsifica, altera o falsifica un documento privado será reprimido con pena privativa de libertad no menor de dos ni mayor de seis años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "428"^^xsd:int ;
+    lo:pena "No menor de 2 ni mayor de 6 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Falsificación de documentos privados" ;
+    lo:titulo_capitulo "Delitos contra la fe pública" .
+
+<https://leyes.peru/eli/1991/codigo-penal/articulo/107> a lo:Articulo,
+        <http://www.estrellaproject.org/lkif-core/legal-rule.owl#LegalRule> ;
+    rdfs:label "Artículo 107: Homicidio simple" ;
+    lo:articleNumber 107 ;
+    lo:belongsTo <https://leyes.peru/eli/1991/codigo-penal/version/1991> ;
+    lo:capitulo "1" ;
+    lo:contenido "El que mata a otro será punido con pena privativa de libertad no menor de seis ni mayor de veinte años." ;
+    lo:esParteDe eli: ;
+    lo:libro "Segundo" ;
+    lo:numero "107"^^xsd:int ;
+    lo:pena "No menor de 6 ni mayor de 20 años" ;
+    lo:perteneceA eli: ;
+    lo:titulo "Homicidio simple" ;
+    lo:titulo_capitulo "Delitos contra la vida" .
+
+lo:Ley a owl:Class ;
+    rdfs:label "Ley" ;
+    rdfs:subClassOf lo:NormaLegal .
+
+lo:Peru a lo:Nacional ;
+    rdfs:label "Peru" ;
+    lo:titulo "Republica del Peru" .
+
+lo:Precedente a owl:Class ;
+    rdfs:label "Precedente" .
+
+lo:JurisdiccionTerritorial a owl:Class ;
+    rdfs:label "JurisdiccionTerritorial" .
+
+lo:TemaLegal a owl:Class ;
+    rdfs:label "TemaLegal" .
+
+lo:Caso a owl:Class ;
+    rdfs:label "Caso" .
+
+lo:NormaLegal a owl:Class ;
+    rdfs:label "NormaLegal" .
+
+<https://leyes.peru/eli/1991/codigo-penal/version/1991> a lo:Version ;
+    lo:hasArticle <https://leyes.peru/eli/1991/codigo-penal/articulo/1>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/106>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/107>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/108>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/109>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/110>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/121>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/122>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/131>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/132>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/149>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/150>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/151>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/152>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/153>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/185>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/186>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/188>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/189>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/196>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/2>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/200>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/3>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/337>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/338>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/376>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/397>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/398>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/399>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/400>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/427>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/428> ;
+    lo:sourceDocument eli: ;
+    lo:versionYear "1991"^^xsd:gYear .
+
+lo:Articulo a owl:Class ;
+    rdfs:label "Articulo" .
+
+eli: a lo:Ley ;
+    lo:contiene <https://leyes.peru/eli/1991/codigo-penal/articulo/1>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/106>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/107>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/108>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/109>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/110>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/121>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/122>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/131>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/132>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/149>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/150>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/151>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/152>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/153>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/185>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/186>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/188>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/189>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/196>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/2>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/200>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/3>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/337>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/338>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/376>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/397>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/398>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/399>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/400>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/427>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/428> ;
+    lo:estado "vigente" ;
+    lo:jurisdiccion "Perú" ;
+    lo:numero "CP" ;
+    lo:tieneArticulo <https://leyes.peru/eli/1991/codigo-penal/articulo/1>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/106>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/107>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/108>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/109>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/110>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/121>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/122>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/131>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/132>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/149>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/150>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/151>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/152>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/153>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/185>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/186>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/188>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/189>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/196>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/2>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/200>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/3>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/337>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/338>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/376>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/397>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/398>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/399>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/400>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/427>,
+        <https://leyes.peru/eli/1991/codigo-penal/articulo/428> ;
+    lo:titulo "Código Penal Peruano" ;
+    dcterms:description "Código Penal Peruano - Decreto Legislativo N° 635" ;
+    dcterms:issued "1991-04-08" .
+
