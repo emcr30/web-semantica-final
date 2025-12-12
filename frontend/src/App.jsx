@@ -2,6 +2,12 @@
 import React, {useState, useEffect} from 'react'
 import axios from 'axios'
 import D3Graph from './D3Graph'
+import CaseAdvisor from './modules/CaseAdvisor'
+import PrecedentAnalyzer from './modules/PrecedentAnalyzer'
+import HierarchyViewer from './modules/HierarchyViewer'
+import ContradictionDetector from './modules/ContradictionDetector'
+import PdfUploader from './modules/PdfUploader'
+import CaseUploader from './modules/CaseUploader'
 
 export default function App(){
   const [tab, setTab] = useState('search')
@@ -15,33 +21,57 @@ export default function App(){
   const [ingestStatus, setIngestStatus] = useState(null)
  
   // API base allows overriding in Vite (.env) or production builds
-  const API_BASE = (import.meta && import.meta.env && import.meta.env.VITE_API_BASE) || ''
+  let API_BASE = ''
+  try{
+    API_BASE = (import.meta && import.meta.env && import.meta.env.VITE_API_BASE) || ''
+  }catch(e){ API_BASE = '' }
+  if(!API_BASE){
+    if(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')){
+      API_BASE = 'http://127.0.0.1:5000'
+    }
+  }
 
   async function loadLaws(){
     setLoading(true)
     try{
-      const sparql = `PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX lo: <http://legalontosystem.pe/ontology#>\nSELECT ?law ?title WHERE { ?law a lo:Ley ; rdfs:label ?title } LIMIT 200`
+      const sparql = `PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX lo: <http://legalontosystem.pe/ontology#>\nSELECT ?res ?label ?titulo WHERE { { ?res a lo:Ley } UNION { ?res a lo:Articulo } UNION { ?res a lo:Documento } . OPTIONAL { ?res rdfs:label ?label } OPTIONAL { ?res lo:titulo ?titulo } } LIMIT 200`
       const res = await axios.post(`${API_BASE}/sparql`, { query: sparql })
-      // Backend returns { head: [...], results: [ { law: '...', title: '...' }, ... ] }
       const rows = (res.data && (res.data.results || res.data.results)) || []
       const n = []
       rows.forEach((r)=>{
         if(!r) return
-        // r may be an object mapping varName->value, or an array-like
         const vals = (typeof r === 'object') ? r : {}
-        const law = vals.law || vals['?law'] || Object.values(vals)[0]
-        const title = vals.title || vals['?title'] || Object.values(vals)[1] || law
-        if(law) n.push({ id: law, label: title || law })
+        const uri = vals.res || vals['?res'] || Object.values(vals)[0]
+        const title = vals.label || vals['?label'] || vals.titulo || vals['?titulo'] || Object.values(vals)[1] || uri
+        if(uri) n.push({ id: uri, label: title || uri })
       })
-      setNodes(n)
+      const visible = n.filter(item => {
+        if(item.is_part) return false
+        if((item.id||'').startsWith('http://legalontosystem.pe/resource/')) return false
+        const lab = (item.label || '').toString().trim()
+        if(!lab) return false
+        const ll = lab.toLowerCase()
+        if(ll === 'none' || ll === 'null') return false
+        if(ll.endsWith('.pdf')) return false
+        return true
+      })
+      setNodes(visible)
       setLinks([])
     }catch(err){
-      console.error(err)
-      alert('Error al cargar las leyes: ' + (err.message || err))
+      console.error('SPARQL load failed, attempting fallback list_resources:', err)
+      try{
+        const res2 = await axios.get(`${API_BASE}/list_resources`)
+        const items = (res2.data && res2.data.results) || []
+        const visible = items.filter(it => !it.is_part)
+        setNodes(visible.map(i => ({ id: i.uri, label: i.title || i.label || i.texto || i.uri })))
+        setLinks([])
+      }catch(err2){
+        console.error(err2)
+        alert('Error al cargar las leyes: ' + (err.message || err))
+      }
     }finally{ setLoading(false) }
   }
 
-  // load laws on initial mount
   useEffect(()=>{
     loadLaws()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -52,7 +82,20 @@ export default function App(){
     try{
       const res = await axios.get(`${API_BASE}/search?q=${encodeURIComponent(query)}`)
       const data = res.data || []
-      setNodes(data.map((r)=>({ id:r.law || Object.values(r)[0], label:r.title || Object.values(r)[1]})))
+      const filtered = data.filter(item => item.is_part !== true)
+      setNodes(filtered.map((r)=>{
+        const id = r.uri || r.law || Object.values(r)[0]
+        const label = r.label || r.texto || r.title || id
+        return { id, label }
+      }).filter(item => {
+        if((item.id||'').startsWith('http://legalontosystem.pe/resource/')) return false
+        const lab = (item.label || '').toString().trim()
+        if(!lab) return false
+        const ll = lab.toLowerCase()
+        if(ll === 'none' || ll === 'null') return false
+        if(ll.endsWith('.pdf')) return false
+        return true
+      }))
       setLinks([])
     }catch(err){
       console.error(err)
@@ -111,7 +154,6 @@ export default function App(){
 
   return (
     <div className="layout">
-      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="brand">
@@ -129,7 +171,39 @@ export default function App(){
             className={`nav-item ${tab==='search'?'active':''}`}
           >
             <span className="nav-icon">🏠</span>
-            <span>Consulta de Leyes</span>
+            <span>Búsqueda</span>
+          </button>
+
+          <button
+            onClick={()=>setTab('advisor')}
+            className={`nav-item ${tab==='advisor'?'active':''}`}
+          >
+            <span className="nav-icon">📋</span>
+            <span>Asesor de Casos</span>
+          </button>
+
+          <button
+            onClick={()=>setTab('precedents')}
+            className={`nav-item ${tab==='precedents'?'active':''}`}
+          >
+            <span className="nav-icon">⚖️</span>
+            <span>Precedentes</span>
+          </button>
+
+          <button
+            onClick={()=>setTab('hierarchy')}
+            className={`nav-item ${tab==='hierarchy'?'active':''}`}
+          >
+            <span className="nav-icon">🌳</span>
+            <span>Jerarquía</span>
+          </button>
+
+          <button
+            onClick={()=>setTab('contradictions')}
+            className={`nav-item ${tab==='contradictions'?'active':''}`}
+          >
+            <span className="nav-icon">⚠️</span>
+            <span>Contradicciones</span>
           </button>
 
           <button
@@ -137,7 +211,23 @@ export default function App(){
             className={`nav-item ${tab==='ingest'?'active':''}`}
           >
             <span className="nav-icon">📥</span>
-            <span>Ingesta de Datos</span>
+            <span>Datos</span>
+          </button>
+
+          <button
+            onClick={()=>setTab('pdf')}
+            className={`nav-item ${tab==='pdf'?'active':''}`}
+          >
+            <span className="nav-icon">📄</span>
+            <span>Subir PDF</span>
+          </button>
+
+          <button
+            onClick={()=>setTab('cases')}
+            className={`nav-item ${tab==='cases'?'active':''}`}
+          >
+            <span className="nav-icon">🗂️</span>
+            <span>Casos</span>
           </button>
 
           <button
@@ -145,20 +235,22 @@ export default function App(){
             className={`nav-item ${tab==='sparql'?'active':''}`}
           >
             <span className="nav-icon">⚡</span>
-            <span>Consultas SPARQL</span>
+            <span>SPARQL</span>
           </button>
         </nav>
       </aside>
 
-      {/* Main Content */}
       <div className="main">
-        {/* Top Bar */}
         <header className="topbar">
           <div className="topbar-content">
             <h2 className="page-title">
-              {tab==='search' && 'Búsqueda y Visualización'}
+              {tab==='search' && 'Búsqueda y Visualización de Leyes'}
+              {tab==='advisor' && 'Asesor Jurídico Inteligente'}
+              {tab==='precedents' && 'Análisis de Precedentes'}
+              {tab==='hierarchy' && 'Estructura del Ordenamiento'}
+              {tab==='contradictions' && 'Detector de Contradicciones'}
               {tab==='ingest' && 'Gestión de Datos'}
-              {tab==='sparql' && 'Editor SPARQL'}
+              {tab==='sparql' && 'Editor SPARQL Avanzado'}
             </h2>
             <div className="user-info">
               <span className="user-name">Sistema Jurídico</span>
@@ -167,9 +259,7 @@ export default function App(){
           </div>
         </header>
 
-        {/* Content Area */}
         <main className="content">
-          {/* Search Tab */}
           {tab==='search' && (
             <>
               <div className="section-card">
@@ -248,7 +338,26 @@ export default function App(){
             </>
           )}
 
-          {/* Ingest Tab */}
+          {tab==='advisor' && (
+            <CaseAdvisor API_BASE={API_BASE} />
+          )}
+
+          {tab==='precedents' && (
+            <PrecedentAnalyzer API_BASE={API_BASE} />
+          )}
+
+          {tab==='cases' && (
+            <CaseUploader API_BASE={API_BASE} />
+          )}
+
+          {tab==='hierarchy' && (
+            <HierarchyViewer API_BASE={API_BASE} />
+          )}
+
+          {tab==='contradictions' && (
+            <ContradictionDetector API_BASE={API_BASE} />
+          )}
+
           {tab==='ingest' && (
             <div className="ingest-layout">
               <div className="section-card">
@@ -286,7 +395,12 @@ export default function App(){
             </div>
           )}
 
-          {/* SPARQL Tab */}
+          {tab==='pdf' && (
+            <div className="pdf-upload-layout">
+              <PdfUploader apiBase={API_BASE} />
+            </div>
+          )}
+
           {tab==='sparql' && (
             <div className="sparql-layout">
               <div className="section-card">
@@ -424,4 +538,3 @@ function CsvIngestForm({onIngestCsv}){
     </div>
   )
 }
-
