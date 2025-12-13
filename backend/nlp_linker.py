@@ -215,8 +215,6 @@ def resolve_law_uris_from_raw(g: Graph, law_raw: str) -> List[str]:
 
 
 # --- Integración con función de precedentes (find_cases_for_article) ---
-# A continuación incluimos una versión adaptada de la función que nos diste,
-# con pequeñas defensas y reutilizable en este módulo.
 
 WEIGHT_DIRECT_PRECEDENT = 3.0
 WEIGHT_TEXT_MATCH = 1.5
@@ -225,10 +223,6 @@ WEIGHT_RECENCY = 1.0
 
 
 def find_cases_for_article(g: Graph, article_uri: str, jurisdiction: str = None, year: int = None, limit: int = 50) -> List[Dict[str, Any]]:
-    """
-    Heurística SPARQL + ranking para encontrar precedentes relevantes para `article_uri`.
-    Reutiliza la lógica base que usas en backend/app.py, pero con defensas y retornos consistentes.
-    """
     logger.debug(f"find_cases_for_article: article_uri={article_uri} jurisdiction={jurisdiction} year={year} limit={limit}")
     results: Dict[str, Dict[str, Any]] = {}
 
@@ -344,24 +338,9 @@ def find_cases_for_article(g: Graph, article_uri: str, jurisdiction: str = None,
     final_sorted = sorted(final, key=lambda x: x.get('score', 0.0), reverse=True)
     return final_sorted[:limit]
 
-
 # --- Función de nivel superior que une extracción y vinculación ---
 
-
 def extract_and_link(text: str, g: Graph, jurisdiction: str = None, year: int = None, max_cases_per_article: int = 20) -> Dict[str, Any]:
-    """
-    Flujo completo:
-      1. Extrae referencias (extract_entities)
-      2. Resuelve artículos y leyes en el grafo (resolve_article_uris_from_number / resolve_law_uris_from_raw)
-      3. Para cada artículo IRI encontrado, llama a find_cases_for_article(...) y devuelve precedentes rankeados
-    Retorna:
-      {
-        'extraction': { ... },
-        'article_uris': [...],
-        'law_uris': [...],
-        'precedents': { article_uri: [cases...] }
-      }
-    """
     logger.info("extract_and_link: starting extraction")
     extraction = extract_entities(text)
     article_raws = extraction.get('articles_raw', [])

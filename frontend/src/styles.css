@@ -173,6 +173,30 @@ body {
   box-shadow: var(--shadow-md);
 }
 
+/* Botones Outline - Texto Negro para máxima legibilidad */
+.btn-outline-primary,
+.btn-outline-secondary,
+.btn-outline-success,
+.btn-outline-danger,
+.btn-outline-warning,
+.btn-outline-info {
+  color: #000000 !important;
+  font-weight: 600;
+  background: #ffffff;
+  border: 2px solid #d1d5db;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-secondary:hover,
+.btn-outline-success:hover,
+.btn-outline-danger:hover,
+.btn-outline-warning:hover,
+.btn-outline-info:hover {
+  color: #000000 !important;
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
 /* Badge Styling */
 .badge {
   padding: 0.5rem 0.85rem;
@@ -264,38 +288,46 @@ body {
 }
 
 .nav-tabs .nav-link {
-  color: var(--text-muted);
+  color: #000000 !important;
   border-bottom: 3px solid transparent;
   font-weight: 600;
   transition: all 0.3s ease;
 }
 
 .nav-tabs .nav-link:hover {
-  color: var(--primary-color);
-  border-bottom-color: var(--accent-color);
+  color: #000000 !important;
+  border-bottom-color: #16a34a;
 }
 
 .nav-tabs .nav-link.active {
-  color: var(--primary-color);
+  color: #16a34a !important;
   background: none;
-  border-bottom-color: var(--primary-color);
+  border-bottom-color: #16a34a;
+  font-weight: 700;
 }
 
 .nav-pills .nav-link {
-  color: var(--text-dark);
-  background: #e2e8f0;
+  color: #000000 !important;
+  background: #ffffff;
+  border: 2px solid #d1d5db;
   border-radius: 6px;
   transition: all 0.3s ease;
-  font-weight: 500;
+  font-weight: 600;
+  padding: 0.6rem 1.2rem;
 }
 
 .nav-pills .nav-link:hover {
-  background: #cbd5e1;
-  transform: translateX(4px);
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: #000000 !important;
+  transform: translateY(-1px);
 }
 
 .nav-pills .nav-link.active {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  border-color: #16a34a;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
 }
 
 /* Spinner Styling */
