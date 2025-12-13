@@ -11,7 +11,15 @@ from rdflib.namespace import RDFS
 # ---------------------------------------------------------
 
 ENDPOINT = "http://localhost:7200/repositories/legal"
-nlp = spacy.load("es_core_news_md")
+try:
+    nlp = spacy.load("es_core_news_md")
+except Exception:
+    try:
+        # fallback to small Spanish model if available
+        nlp = spacy.load("es_core_news_sm")
+    except Exception:
+        # final fallback: blank Spanish pipeline (no vectors, limited features)
+        nlp = spacy.blank("es")
 
 def run_query(q):
     sparql = SPARQLWrapper(ENDPOINT)

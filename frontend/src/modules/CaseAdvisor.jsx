@@ -8,6 +8,69 @@ export default function CaseAdvisor({API_BASE}){
   const [loading, setLoading] = useState(false)
   const [extractedEntities, setExtractedEntities] = useState(null)
 
+  // Basic Spanish normalization and semantic keyword expansion
+  const normalize = (s) => (s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9\sáéíóúñ]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  // Escape strings for safe SPARQL double-quoted literals
+  const sparqlLiteral = (s) => (s || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, ' ')
+    .trim()
+
+  // Normalize URIs to canonical ELI form for deduplication
+  const normalizeUri = (u) => {
+    if (!u) return u
+    let x = u.trim()
+    // strip trailing slash
+    x = x.replace(/\/$/, '')
+    // map known hosts to canonical leyes.peru
+    x = x.replace(/^https?:\/\/[^/]+\/eli\//, 'https://leyes.peru/eli/')
+    return x
+  }
+
+  const expandKeywords = (desc, kws) => {
+    const base = new Set((kws || []).map(k => normalize(k)))
+    const nd = normalize(desc)
+    const add = (t) => { if (t && t.length >= 3) base.add(t) }
+
+    // Heuristic cues from description
+    if (/muerte inmediata|murio|fallecio|le caus[oó] la muerte/.test(nd)) {
+      add('homicidio'); add('asesinato'); add('muerte')
+    }
+    if (/cuchillo|arma blanca|apu[nñ]al/.test(nd)) { add('arma blanca'); add('cuchillo') }
+    if (/pelea|ri[ñn]a|discusion/.test(nd)) { add('riña'); add('pelea'); add('discusion') }
+    if (/no existio planificacion previa|sin premeditacion|no hubo planificacion/.test(nd)) {
+      add('sin premeditacion'); add('homicidio simple'); add('dolo'); add('culposo')
+    }
+
+    // Synonym expansion map (legal spanish)
+    const syn = {
+      'asesinato': ['homicidio', 'dar muerte', 'matar'],
+      'homicidio': ['asesinato', 'muerte', 'dar muerte'],
+      'muerte': ['fallecimiento', 'deceso'],
+      'cuchillo': ['arma blanca', 'navaja'],
+      'pelea': ['riña', 'altercado', 'discusion'],
+      'sin premeditacion': ['no premeditado', 'no planificado'],
+      'dolo': ['intencional'],
+      'culposo': ['negligente']
+    }
+    // Seed with a few high-signal terms from description even if NLP missed them
+    if (nd.includes('muerte inmediata')) { add('homicidio') }
+
+    // Expand synonyms
+    Array.from(base).forEach(t => {
+      const s = syn[t]
+      if (s) s.forEach(add)
+    })
+    return Array.from(base)
+  }
+
   async function analyzeCase(){
     if(!caseDescription.trim()){
       alert('Por favor ingresa la descripción del caso')
@@ -22,9 +85,26 @@ export default function CaseAdvisor({API_BASE}){
       })
       setExtractedEntities(nlpRes.data)
 
-      // Step 2: Search for applicable laws based on entities
+      // Step 2: Semantic advisor via backend (no SPARQL)
+      try {
+        const adv = await axios.post(`${API_BASE}/advise_case`, { text: caseDescription })
+        const items = Array.isArray(adv.data?.applicable) ? adv.data.applicable : []
+        if (items.length > 0) {
+          setRecommendations({
+            entities: nlpRes.data,
+            applicableLaws: items.map(it => ({ law: it.uri, title: it.title })),
+            reasoning: `Se detectaron indicios del tipo penal y se recuperaron artículos vinculados al caso a través de menciones explícitas y taxonomía del delito.`
+          })
+          setLoading(false)
+          return
+        }
+      } catch (e) {
+        // proceed to keyword search fallback
+      }
+
+      // Step 3: Search for applicable laws based on expanded keywords (fallback)
       const articles = nlpRes.data.articles || []
-      const keywords = nlpRes.data.keywords || []
+      const keywords = expandKeywords(caseDescription, nlpRes.data.keywords || [])
       
       let recs = {
         entities: nlpRes.data,
@@ -32,34 +112,47 @@ export default function CaseAdvisor({API_BASE}){
         reasoning: ''
       }
 
-      // SPARQL query to find laws matching keywords (search in label/titulo/texto)
-      if(keywords.length > 0){
-        // build a FILTER that matches any keyword in label, titulo or texto
-        const safeKw = kw => kw.replace(/"/g,'\\"').replace(/\n/g,' ').trim()
-        const filters = keywords.map(k => {
-          const sk = safeKw(k)
-          return `(regex(str(?label), "${sk}", "i") || regex(str(?titulo), "${sk}", "i") || regex(str(?texto), "${sk}", "i"))`
-        }).join(' || ')
+      // Query per keyword via backend text search to avoid SPARQL parser issues; aggregate results
+      const kwSet = Array.from(new Set(keywords.map(k => (k || '').toString().trim()).filter(k => k.length >= 3)))
+      const topKw = kwSet.slice(0, 8)
+      const aggregate = new Map() // normalized uri -> title
+      for (const kw of topKw) {
+        try {
+          const resp = await axios.post(`${API_BASE}/search_text`, { keywords: [kw], limit: 40 })
+          const items = Array.isArray(resp.data?.results) ? resp.data.results : []
+          items.forEach(it => {
+            const uri = normalizeUri(it.res)
+            const title = it.title || null
+            if (uri && !aggregate.has(uri)) aggregate.set(uri, title)
+          })
+        } catch(e) { /* continue */ }
+      }
 
-        const sparqlQuery = `
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      // Explicit lookup for Article 106 if homicide cues present
+      const nd = normalize(caseDescription)
+      const homicideCue = /muerte inmediata|homicidio|asesinato/.test(nd)
+      if (homicideCue) {
+        const numQuery = `
 PREFIX lo: <http://legalontosystem.pe/ontology#>
-SELECT ?res ?label ?titulo ?article ?texto WHERE {
-  { ?res a lo:Ley } UNION { ?res a lo:Articulo } .
-  OPTIONAL { ?res rdfs:label ?label }
-  OPTIONAL { ?res lo:titulo ?titulo }
-  OPTIONAL { ?res lo:texto ?texto }
-  OPTIONAL { ?res lo:tieneArticulo ?article }
-  FILTER ( ${filters} )
-} LIMIT 50
-        `
-        const sparqlRes = await axios.post(`${API_BASE}/sparql`, { query: sparqlQuery })
-        // normalize to objects with .law and .title for UI, normalize 'None'/'null'
-        recs.applicableLaws = (sparqlRes.data.results || []).map(r => {
-          let title = r.label || r['?label'] || r.titulo || r['?titulo'] || null
-          if(title && (title.toLowerCase() === 'none' || title.toLowerCase() === 'null')) title = null
-          return ({ law: r.res || r['?res'], title: title })
-        }).slice(0,20)
+SELECT ?art ?titulo WHERE {
+  ?art a lo:Articulo ; lo:articleNumber "106" .
+  OPTIONAL { ?art lo:titulo ?titulo }
+} LIMIT 10`
+        try {
+          // prefer non-SPARQL direct scan using search_text including article number string
+          const resp = await axios.post(`${API_BASE}/search_text`, { keywords: ['106'], limit: 20 })
+          const items = Array.isArray(resp.data?.results) ? resp.data.results : []
+          items.forEach(it => {
+            const uri = normalizeUri(it.res)
+            const title = it.title || 'Homicidio simple'
+            if (uri && !aggregate.has(uri)) aggregate.set(uri, title)
+          })
+        } catch (e) {}
+      }
+
+      // Finalize recommendations from aggregate
+      if (aggregate.size > 0) {
+        recs.applicableLaws = Array.from(aggregate.entries()).slice(0, 20).map(([uri, title]) => ({ law: uri, title }))
       }
 
       // Generate reasoning explanation

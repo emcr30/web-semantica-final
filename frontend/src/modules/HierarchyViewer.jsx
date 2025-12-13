@@ -21,7 +21,7 @@ export default function HierarchyViewer({API_BASE}){
       await Promise.all(laws.map(async (l) => {
         lawMap[l.uri] = { name: l.title, children: [] }
         try{
-          const q = `PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX lo: <http://legalontosystem.pe/ontology#>\nPREFIX dct: <http://purl.org/dc/terms/>\nSELECT ?art ?label ?titulo ?anio ?jurisd WHERE { OPTIONAL { <${l.uri}> lo:tieneArticulo ?art . OPTIONAL { ?art rdfs:label ?label } } OPTIONAL { <${l.uri}> lo:titulo ?titulo } OPTIONAL { <${l.uri}> lo:anio ?anio } OPTIONAL { <${l.uri}> lo:aplicaEn ?jurisd } } LIMIT 200`;
+          const q = `PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX lo: <http://legalontosystem.pe/ontology#>\nPREFIX dct: <http://purl.org/dc/terms/>\nSELECT ?art ?label ?titulo ?anio ?jurisd WHERE {\n  OPTIONAL {\n    { <${l.uri}> lo:tieneArticulo ?art } UNION { <${l.uri}> lo:hasArticle ?art } .\n    OPTIONAL { ?art rdfs:label ?label }\n  }\n  OPTIONAL { <${l.uri}> lo:titulo ?titulo }\n  OPTIONAL { <${l.uri}> lo:anio ?anio }\n  OPTIONAL { <${l.uri}> lo:aplicaEn ?jurisd }\n} LIMIT 500`;
           const r = await axios.post(`${API_BASE}/sparql`, { query: q })
           const rows = (r.data && r.data.results) || []
           rows.forEach(row => {
@@ -34,6 +34,17 @@ export default function HierarchyViewer({API_BASE}){
             if(row.anio || row['?anio']) lawMap[l.uri].year = row.anio || row['?anio']
             if(row.jurisd || row['?jurisd']) lawMap[l.uri].jurisdiccion = row.jurisd || row['?jurisd']
           })
+          // Deduplicate article children by uri
+          if (lawMap[l.uri] && Array.isArray(lawMap[l.uri].children)){
+            const seen = new Set()
+            lawMap[l.uri].children = lawMap[l.uri].children.filter(c => {
+              const key = c.uri || c.name
+              if(!key) return false
+              if(seen.has(key)) return false
+              seen.add(key)
+              return true
+            })
+          }
           if((lawMap[l.uri].children || []).length === 0){
             delete lawMap[l.uri]
           }

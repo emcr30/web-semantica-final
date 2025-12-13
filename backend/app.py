@@ -133,6 +133,16 @@ def _eli_article_uri(article_num: str, g: Graph) -> str:
     year = _find_codigo_penal_year(g)
     return f"https://leyes.peru/eli/{year}/codigo-penal/articulo/{art_num}"
 
+def _normalize_uri(u: str) -> str:
+    """Normalize URIs to canonical ELI domain and strip trailing slash."""
+    if not isinstance(u, str):
+        return u
+    s = u.strip().rstrip('/')
+    if '/eli/' in s:
+        parts = s.split('/eli/', 1)
+        s = 'https://leyes.peru/eli/' + parts[1]
+    return s
+
 @APP.route('/ingest', methods=['POST'])
 def ingest():
     data = request.json or {}
@@ -304,16 +314,384 @@ def sparql_endpoint():
     if not isinstance(query, str):
         return jsonify({'error': 'query must be a string', 'type': str(type(query)), 'repr': repr(query)[:1000]}), 400
 
+    # Auto-inject common prefixes if used but not declared
+    def _ensure_prefixes(q: str) -> str:
+        try:
+            import re
+            prefix_map = {
+                'rdfs': 'http://www.w3.org/2000/01/rdf-schema#',
+                'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+                'lo': 'http://legalontosystem.pe/ontology#',
+                'dct': 'http://purl.org/dc/terms/',
+                'xsd': 'http://www.w3.org/2001/XMLSchema#',
+            }
+            # prefixes already declared
+            declared = set(m.group(1).lower() for m in re.finditer(r'(?im)^\s*PREFIX\s+([A-Za-z][A-Za-z0-9_-]*):', q))
+            needed = []
+            for p, uri in prefix_map.items():
+                # detect token usage like 'pfx:' that isn't part of a PREFIX line
+                if re.search(rf'(^|[^A-Za-z0-9_]){p}:[A-Za-z_]', q) and p not in declared:
+                    needed.append(f"PREFIX {p}: <{uri}>")
+            if needed:
+                q = "\n".join(needed) + "\n" + q
+            return q
+        except Exception:
+            return q
+
+    query = _ensure_prefixes(query)
+    # Basic validation: detect malformed UNION usage before rdflib parses
+    try:
+        qchk = query if isinstance(query, str) else str(query)
+        # Auto-correct common typo 'UNIO' -> 'UNION' between groups
+        import re
+        qchk = re.sub(r"\}\s*UNIO\s*\{", "} UNION {", qchk, flags=re.IGNORECASE)
+        # Rewrite specific UNION pattern for article children into a path operator to avoid parser fragility
+        # { <SUBJ> lo:tieneArticulo ?art } UNION { <SUBJ> lo:hasArticle ?art } -> { <SUBJ> (lo:tieneArticulo|lo:hasArticle) ?art }
+        qchk = re.sub(
+            r"\{\s*<([^>]+)>\s+lo:tieneArticulo\s+\?art\s*\}\s*UNION\s*\{\s*<\\1>\s+lo:hasArticle\s+\?art\s*\}",
+            r"{ <\\1> (lo:tieneArticulo|lo:hasArticle) ?art }",
+            qchk,
+            flags=re.IGNORECASE
+        )
+        query = qchk
+        if 'UNION' in qchk:
+            # A valid UNION requires two complete groups {...} UNION {...}
+            # quick check for presence of two braces groups
+            groups = re.findall(r"\{[^}]*\}", qchk)
+            if len(groups) < 2 or 'UNIO' in qchk:
+                raise ValueError('Invalid SPARQL UNION detected')
+    except Exception as _:
+        # do not block; allow fallback to handle query
+        pass
+
     try:
         res = GRAPH.query(query)
     except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        # print to stderr so logs capture the full context
-        print('SPARQL execution error; query preview:', repr(query)[:1000])
-        print(tb)
-        # return a helpful error to the client (preview limited)
-        return jsonify({'error': 'query_error', 'message': str(e), 'query_preview': repr(query)[:1000]}), 500
+        # Concise logging without full traceback to avoid noisy console spam
+        msg = str(e)
+        print('SPARQL execution error;', 'query preview:', repr(query)[:300], 'error:', msg)
+
+        # Attempt a targeted fallback for a common query template used by the UI:
+        # SELECT ?art ?label ?titulo ?anio ?jurisd WHERE {
+        #   OPTIONAL {
+        #     { <SUBJ> lo:tieneArticulo ?art } UNION { <SUBJ> lo:hasArticle ?art } .
+        #     OPTIONAL { ?art rdfs:label ?label }
+        #   }
+        #   OPTIONAL { <SUBJ> lo:titulo ?titulo }
+        #   OPTIONAL { <SUBJ> lo:anio ?anio }
+        #   OPTIONAL { <SUBJ> lo:aplicaEn ?jurisd }
+        # }
+        try:
+            import re
+            qstr = query if isinstance(query, str) else str(query)
+            # Extract the fixed subject URI inside angle brackets that appears before tieneArticulo/hasArticle
+            m = re.search(r"\{\s*<([^>]+)>\s+lo:(?:tieneArticulo|hasArticle)\s+\?art", qstr)
+            if not m:
+                # try within OPTIONAL { { <...> ... } UNION { <...> ... } }
+                m = re.search(r"\{\s*\{\s*<([^>]+)>\s+lo:(?:tieneArticulo|hasArticle)\s+\?art", qstr)
+            if m:
+                subj_uri = m.group(1)
+                LO = rdflib.URIRef('http://legalontosystem.pe/ontology#')
+                tiene = rdflib.URIRef(str(LO) + 'tieneArticulo')
+                has = rdflib.URIRef(str(LO) + 'hasArticle')
+                # gather articles
+                arts = []
+                sref = rdflib.URIRef(subj_uri)
+                try:
+                    for a in GRAPH.objects(sref, tiene):
+                        arts.append(a)
+                except Exception:
+                    pass
+                try:
+                    for a in GRAPH.objects(sref, has):
+                        arts.append(a)
+                except Exception:
+                    pass
+                # dedupe while preserving order
+                seen_u = set()
+                arts_u = []
+                for a in arts:
+                    su = str(a)
+                    if su not in seen_u:
+                        seen_u.add(su)
+                        arts_u.append(a)
+
+                titulo = GRAPH.value(sref, rdflib.URIRef(str(LO) + 'titulo'))
+                anio = GRAPH.value(sref, rdflib.URIRef(str(LO) + 'anio'))
+                jurisd = GRAPH.value(sref, rdflib.URIRef(str(LO) + 'aplicaEn'))
+
+                rows = []
+                for a in arts_u:
+                    label = GRAPH.value(a, RDFS.label)
+                    rows.append({
+                        'art': str(a),
+                        'label': str(label) if label else None,
+                        'titulo': str(titulo) if titulo else None,
+                        'anio': str(anio) if anio else None,
+                        'jurisd': str(jurisd) if jurisd else None,
+                    })
+                return jsonify({'head': ['art','label','titulo','anio','jurisd'], 'results': rows, 'fallback': True})
+        except Exception:
+            # ignore and fall through to soft error
+            pass
+
+        # Fallback 2: list all articles with optional number and title
+        # Matches queries of the form:
+        #   SELECT ?art ?num ?title WHERE {
+        #     ?art a lo:Articulo .
+        #     OPTIONAL { ?art lo:articleNumber ?num }
+        #     OPTIONAL { ?art rdfs:label ?l }
+        #     OPTIONAL { ?art lo:titulo ?t }
+        #     BIND(COALESCE(?l, ?t, "") AS ?title)
+        #   } ORDER BY ?num LIMIT N
+        try:
+            import re
+            qstr = query if isinstance(query, str) else str(query)
+            if re.search(r"\?art\s+a\s+lo:Articulo", qstr):
+                # derive limit if present
+                lim = 100
+                mlim = re.search(r"LIMIT\s+(\d+)", qstr, re.IGNORECASE)
+                if mlim:
+                    try:
+                        lim = int(mlim.group(1))
+                    except Exception:
+                        lim = 100
+                # detect if ordering by ?num requested
+                order_by_num = bool(re.search(r"ORDER\s+BY\s+\?num", qstr, re.IGNORECASE))
+
+                LO = rdflib.URIRef('http://legalontosystem.pe/ontology#')
+                art_t = rdflib.URIRef(str(LO) + 'Articulo')
+                num_p = rdflib.URIRef(str(LO) + 'articleNumber')
+                titulo_p = rdflib.URIRef(str(LO) + 'titulo')
+
+                rows_raw = []
+                for s in GRAPH.subjects(RDF.type, art_t):
+                    num = GRAPH.value(s, num_p)
+                    l = GRAPH.value(s, RDFS.label)
+                    t = GRAPH.value(s, titulo_p)
+                    title = l or t
+                    rows_raw.append({
+                        'art': str(s),
+                        'num_raw': str(num) if num is not None else None,
+                        'title': str(title) if title is not None else ''
+                    })
+
+                def num_key(v):
+                    try:
+                        # extract integer even if stored as string
+                        import re
+                        m = re.search(r"\d+", v.get('num_raw') or '')
+                        return int(m.group(0)) if m else 10**9
+                    except Exception:
+                        return 10**9
+
+                if order_by_num:
+                    rows_raw.sort(key=num_key)
+
+                # apply limit and map to expected keys
+                out = []
+                for r in rows_raw[:lim]:
+                    out.append({ 'art': r['art'], 'num': r['num_raw'], 'title': r['title'] })
+
+                return jsonify({'head': ['art','num','title'], 'results': out, 'fallback': True})
+        except Exception:
+            pass
+
+        # Fallback 3: generic typed-list with OPTIONAL props and simple CONTAINS filters
+        # Supports queries containing a basic pattern: ?var a lo:Class . OPTIONAL { ?var prop ?v }
+        # Recognized props: rdfs:label, lo:titulo, lo:texto, lo:articleNumber. Supports ORDER BY ?varname and LIMIT N.
+        try:
+            import re
+            qstr = query if isinstance(query, str) else str(query)
+            # Identify SELECT variables
+            msel = re.search(r"(?is)select\s+(.*?)\s+where", qstr)
+            if not msel:
+                raise ValueError('no select clause')
+            sel_part = msel.group(1)
+            sel_vars = [v.strip()[1:] for v in re.findall(r"\?[A-Za-z_][A-Za-z0-9_]*", sel_part)]
+
+            # Detect type pattern ?res a lo:Something
+            mtype = re.search(r"\?(?P<res>[A-Za-z_][A-Za-z0-9_]*)\s+a\s+lo:(?P<class>[A-Za-z_][A-Za-z0-9_]*)", qstr)
+            if not mtype:
+                raise ValueError('no type pattern')
+            res_var = mtype.group('res')
+            class_name = mtype.group('class')
+
+            # Detect OPTIONAL bindings for common props to variable names
+            def opt_var(pattern: str) -> str | None:
+                m = re.search(pattern, qstr)
+                return m.group(1) if m else None
+            l_var = opt_var(r"OPTIONAL\s*\{\s*\?%s\s+rdfs:label\s+\?(\w+)\s*\}" % res_var)
+            t_var = opt_var(r"OPTIONAL\s*\{\s*\?%s\s+lo:titulo\s+\?(\w+)\s*\}" % res_var)
+            x_var = opt_var(r"OPTIONAL\s*\{\s*\?%s\s+lo:texto\s+\?(\w+)\s*\}" % res_var)
+            n_var = opt_var(r"OPTIONAL\s*\{\s*\?%s\s+lo:articleNumber\s+\?(\w+)\s*\}" % res_var)
+
+            # Extract simple CONTAINS filters of form CONTAINS(LCASE(STR(?var)), "term")
+            contains_filters = []
+            for m in re.finditer(r"CONTAINS\(\s*LCASE\(STR\(\?(\w+)\)\)\s*,\s*\"([^\"]*)\"\s*\)", qstr, re.IGNORECASE):
+                contains_filters.append((m.group(1), m.group(2).lower()))
+
+            # ORDER BY and LIMIT
+            order_m = re.search(r"ORDER\s+BY\s+\?(\w+)", qstr, re.IGNORECASE)
+            order_var = order_m.group(1) if order_m else None
+            lim = 200
+            mlim = re.search(r"LIMIT\s+(\d+)", qstr, re.IGNORECASE)
+            if mlim:
+                try:
+                    lim = int(mlim.group(1))
+                except Exception:
+                    lim = 200
+
+            # Resolve class URI
+            LO = rdflib.URIRef('http://legalontosystem.pe/ontology#')
+            class_uri = rdflib.URIRef(str(LO) + class_name)
+            # Collect resources of this type
+            resources = list(GRAPH.subjects(RDF.type, class_uri))
+
+            # Build row objects with available fields
+            out_rows = []
+            for s in resources:
+                lab = GRAPH.value(s, RDFS.label)
+                tit = GRAPH.value(s, rdflib.URIRef(str(LO) + 'titulo'))
+                txt = GRAPH.value(s, rdflib.URIRef(str(LO) + 'texto'))
+                num = GRAPH.value(s, rdflib.URIRef(str(LO) + 'articleNumber'))
+
+                # Apply contains filters when they reference known vars
+                ok = True
+                for vname, term in contains_filters:
+                    val = None
+                    if vname == (l_var or ''):
+                        val = lab
+                    elif vname == (t_var or ''):
+                        val = tit
+                    elif vname == (x_var or ''):
+                        val = txt
+                    elif vname == (n_var or ''):
+                        val = num
+                    elif vname == res_var:
+                        val = s
+                    if val is not None and term:
+                        sval = str(val).lower()
+                        if term not in sval:
+                            ok = False; break
+                if not ok:
+                    continue
+
+                row = {}
+                # Populate selected variables
+                for v in sel_vars:
+                    if v == res_var:
+                        row[v] = str(s)
+                    elif v == (l_var or ''):
+                        row[v] = str(lab) if lab is not None else None
+                    elif v == (t_var or ''):
+                        row[v] = str(tit) if tit is not None else None
+                    elif v == (x_var or ''):
+                        row[v] = str(txt) if txt is not None else None
+                    elif v == (n_var or ''):
+                        row[v] = str(num) if num is not None else None
+                    elif v.lower() == 'title':
+                        row[v] = str(lab or tit or '')
+                    else:
+                        row[v] = None
+                out_rows.append(row)
+
+            # Sorting
+            if order_var:
+                def order_key(r):
+                    val = r.get(order_var)
+                    if val is None:
+                        return ''
+                    # try numeric
+                    try:
+                        import re
+                        m = re.search(r"\d+", str(val))
+                        return int(m.group(0)) if m else str(val)
+                    except Exception:
+                        return str(val)
+                out_rows.sort(key=order_key)
+
+            # Trim to limit and return with head equal to SELECT projection order
+            head = ['?' + v for v in sel_vars]
+            # Convert to rdflib-like result format: keys without '?'
+            mapped = []
+            for r in out_rows[:lim]:
+                mapped.append({ k: ('' if r[k[1:]] is None else r[k[1:]]) for k in head })
+
+            return jsonify({'head': [v[1:] for v in head], 'results': mapped, 'fallback': True})
+        except Exception:
+            pass
+
+        # Fallback 4: typed-list for any prefix (including default ':') e.g. `?x a :Delito` with OPTIONAL rdfs:label
+        try:
+            import re
+            qstr = query if isinstance(query, str) else str(query)
+
+            # Collect declared prefixes, including default ':'
+            prefix_map = {}
+            for m in re.finditer(r"(?im)^\s*PREFIX\s+([A-Za-z][A-Za-z0-9_-]*)?:\s*<([^>]+)>", qstr):
+                pfx = m.group(1) or ''
+                uri = m.group(2)
+                prefix_map[pfx] = uri
+
+            # Detect pattern `?var a <pfx>:<Class>` where pfx may be empty (default ':')
+            mtype = re.search(r"\?(?P<res>[A-Za-z_][A-Za-z0-9_]*)\s+a\s+(?P<pfx>[A-Za-z][A-Za-z0-9_-]*)?:\s*(?P<class>[A-Za-z_][A-Za-z0-9_]*)", qstr)
+            if not mtype:
+                raise ValueError('no typed pattern with arbitrary prefix')
+            res_var = mtype.group('res')
+            pfx = mtype.group('pfx') or ''
+            cls = mtype.group('class')
+            base = prefix_map.get(pfx)
+            if not base:
+                raise ValueError('prefix base not found')
+            class_uri = rdflib.URIRef(base + cls)
+
+            # Optional label var name
+            mlabel = re.search(r"OPTIONAL\s*\{\s*\?%s\s+rdfs:label\s+\?(\w+)\s*\}" % res_var, qstr)
+            label_var = mlabel.group(1) if mlabel else None
+
+            # Extract SELECT var names
+            msel = re.search(r"(?is)select\s+(.*?)\s+where", qstr)
+            if not msel:
+                raise ValueError('no select clause')
+            sel_vars = [v.strip()[1:] for v in re.findall(r"\?[A-Za-z_][A-Za-z0-9_]*", msel.group(1))]
+
+            # ORDER BY and LIMIT
+            order_m = re.search(r"ORDER\s+BY\s+\?(\w+)", qstr, re.IGNORECASE)
+            order_var = order_m.group(1) if order_m else None
+            lim = 200
+            mlim = re.search(r"LIMIT\s+(\d+)", qstr, re.IGNORECASE)
+            if mlim:
+                try:
+                    lim = int(mlim.group(1))
+                except Exception:
+                    lim = 200
+
+            # Collect resources and build rows
+            rows = []
+            for s in GRAPH.subjects(RDF.type, class_uri):
+                lab = GRAPH.value(s, RDFS.label)
+                row = {}
+                for v in sel_vars:
+                    if v == res_var:
+                        row[v] = str(s)
+                    elif v == (label_var or '') or v.lower() == 'label':
+                        row[v] = str(lab) if lab is not None else ''
+                    else:
+                        row[v] = ''
+                rows.append(row)
+
+            # sort and limit
+            if order_var:
+                rows.sort(key=lambda r: (r.get(order_var) or '').lower())
+            rows = rows[:lim]
+
+            return jsonify({'head': sel_vars, 'results': [{k: v for k, v in r.items()} for r in rows], 'fallback': True})
+        except Exception:
+            pass
+
+        # Return a soft error with empty results to avoid noisy 500s in the UI
+        return jsonify({'head': [], 'results': [], 'error': 'query_error', 'message': msg, 'query_preview': repr(query)[:1000]}), 200
 
     # convert to JSON-friendly (stringify variable names)
     vars = [str(v) for v in res.vars]
@@ -321,6 +699,204 @@ def sparql_endpoint():
     for r in res:
         rows.append({ vars[i]: str(r[i]) for i in range(len(vars)) })
     return jsonify({'head':vars,'results':rows})
+
+@APP.route('/search_text', methods=['POST'])
+def search_text():
+    """Search resources by simple text match across common properties without SPARQL.
+    Body: { "keywords": ["homicidio", "arma blanca"], "limit": 100 }
+    Returns: { results: [ { res: uri, title: str } ] }
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        kws = [str(k).strip().lower() for k in data.get('keywords', []) if isinstance(k, str)]
+        limit = int(data.get('limit', 100))
+        if not kws:
+            return jsonify({ 'results': [] })
+
+        RDFS_LABEL = RDFS.label
+        LO = URIRef('http://legalontosystem.pe/ontology#')
+        props = [RDFS_LABEL, URIRef(str(LO) + 'titulo'), URIRef(str(LO) + 'texto'), URIRef('http://www.w3.org/2000/01/rdf-schema#comment'), URIRef(str(LO) + 'delitoLiteral')]
+
+        seen = set()
+        results = []
+        # Iterate all subjects and check literals of target properties
+        for s in set(GRAPH.subjects(None, None)):
+            # type filter: law or article if types present
+            types = set(GRAPH.objects(s, RDF.type))
+            if types and URIRef(str(LO) + 'Ley') not in types and URIRef(str(LO) + 'Articulo') not in types:
+                continue
+            title = None
+            matched = False
+            for p in props:
+                for o in GRAPH.objects(s, p):
+                    if isinstance(o, rdflib.term.Literal):
+                        val = str(o).lower()
+                        for kw in kws:
+                            if kw and kw in val:
+                                matched = True
+                                if p == RDFS_LABEL or p == URIRef(str(LO) + 'titulo'):
+                                    title = str(o)
+                                break
+                    if matched:
+                        break
+                if matched:
+                    break
+            if matched:
+                uri = str(s).rstrip('/')
+                # normalize canonical ELI domain
+                if '/eli/' in uri:
+                    parts = uri.split('/eli/', 1)
+                    uri = 'https://leyes.peru/eli/' + parts[1]
+                if uri in seen:
+                    continue
+                seen.add(uri)
+                results.append({ 'res': uri, 'title': title })
+                if len(results) >= limit:
+                    break
+        return jsonify({ 'results': results })
+    except Exception as e:
+        import traceback
+        print('search_text error:', traceback.format_exc())
+        return jsonify({ 'error': str(e) }), 500
+
+@APP.route('/advise_case', methods=['POST'])
+def advise_case():
+    """Semantic advisor: extract crime labels and return linked articles/laws without SPARQL.
+    Body: { text: "..." }
+    Returns: { applicable: [ { uri, title } ] }
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        text = str(data.get('text', '') or '')
+        if not text:
+            return jsonify({ 'applicable': [] })
+
+        # Extract metadata and keywords
+        meta = nlp_extractor.extract_case_metadata(text)
+        extracted = nlp_extractor.extract_entities(text)
+        crime_labels = set([c.lower() for c in meta.get('crime_labels', [])])
+        # Also include keywords as crime cues
+        for k in extracted.get('keywords', []):
+            if isinstance(k, str):
+                kl = k.lower()
+                if kl in ('homicidio','asesinato','lesiones','robo','violencia') or 'homicid' in kl or 'robo' in kl:
+                    crime_labels.add('homicidio' if 'homicid' in kl or 'muerte' in kl else kl)
+
+        LO = URIRef('http://legalontosystem.pe/ontology#')
+        # Collect articles linked by cases/documents via mencionaArticulo or delitoLiteral
+        seen = {}
+        scored = []
+        # Helper to normalize ELI URI
+        def norm(uri: str) -> str:
+            if not uri:
+                return uri
+            u = uri.rstrip('/')
+            if '/eli/' in u:
+                parts = u.split('/eli/', 1)
+                u = 'https://leyes.peru/eli/' + parts[1]
+            return u
+
+        # Check all subjects typed as Caso or Documento and pivot to Articulo
+        tipos = [URIRef(str(LO) + 'Caso'), URIRef(str(LO) + 'Documento')]
+        for t in tipos:
+            for subj in GRAPH.subjects(RDF.type, t):
+                # crime match via delitoLiteral
+                match = False
+                for dlit in GRAPH.objects(subj, URIRef(str(LO) + 'delitoLiteral')):
+                    if isinstance(dlit, rdflib.Literal):
+                        val = str(dlit).lower()
+                        for cl in crime_labels:
+                            if cl and cl in val:
+                                match = True
+                                break
+                    if match:
+                        break
+                # If no explicit delitoLiteral match, do a weak text match against texto/comment
+                if not match:
+                    for p in [URIRef(str(LO) + 'texto'), RDFS.label, URIRef('http://www.w3.org/2000/01/rdf-schema#comment')]:
+                        for o in GRAPH.objects(subj, p):
+                            if isinstance(o, rdflib.Literal):
+                                val = str(o).lower()
+                                for cl in crime_labels:
+                                    if cl and cl in val:
+                                        match = True
+                                        break
+                        if match:
+                            break
+                if not match:
+                    continue
+                # gather mentioned articles
+                for art in GRAPH.objects(subj, URIRef(str(LO) + 'mencionaArticulo')):
+                    uri = norm(str(art))
+                    if not uri:
+                        continue
+                    # compute a relevance score
+                    score = 0
+                    score += 5 if match else 0
+                    # boost homicide articles by number
+                    art_num = GRAPH.value(art, URIRef(str(LO) + 'articleNumber'))
+                    if art_num and str(art_num).strip() in ('106','108','107'):
+                        score += 3
+                    # boost if article/title contains crime labels
+                    atitle = GRAPH.value(art, URIRef(str(LO) + 'titulo')) or GRAPH.value(art, RDFS.label)
+                    atitle_s = str(atitle) if atitle else ''
+                    for cl in crime_labels:
+                        if cl and cl in atitle_s.lower():
+                            score += 2
+                    # construct display title with parent law title if available
+                    ley_title = None
+                    for ley in GRAPH.objects(art, URIRef(str(LO) + 'perteneceALey')):
+                        lt = GRAPH.value(ley, URIRef(str(LO) + 'titulo')) or GRAPH.value(ley, RDFS.label)
+                        if lt:
+                            ley_title = str(lt)
+                            break
+                    display = None
+                    if atitle:
+                        display = str(atitle)
+                    else:
+                        # fallback: "Artículo {num} – {ley_title}" or ELI code
+                        num = str(art_num) if art_num else None
+                        if num and ley_title:
+                            display = f"Artículo {num} – {ley_title}"
+                        elif num:
+                            # try to infer year from URI
+                            yr = None
+                            try:
+                                import re
+                                m = re.search(r"/(19|20)\d{2}/", uri)
+                                if m:
+                                    yr = m.group(0).strip('/').strip()
+                            except Exception:
+                                pass
+                            display = f"Artículo {num} – Código Penal {yr}" if yr else f"Artículo {num}"
+                        else:
+                            display = uri
+                    prev = seen.get(uri)
+                    if not prev or score > prev['score']:
+                        seen[uri] = { 'uri': uri, 'title': display, 'score': score }
+                        scored.append(seen[uri])
+
+        # If still empty and homicide cues present, add Article 106
+        if not scored and ('homicidio' in crime_labels or 'muerte' in extracted.get('keywords', [])):
+            try:
+                uri = norm(_eli_article_uri('106', GRAPH))
+                title = None
+                # Try to find the article resource to fetch title
+                for s in GRAPH.subjects(None, None):
+                    if str(s).rstrip('/') == uri:
+                        title = GRAPH.value(s, URIRef(str(LO) + 'titulo')) or GRAPH.value(s, RDFS.label)
+                        break
+                scored.append({ 'uri': uri, 'title': str(title) if title else 'Homicidio simple', 'score': 4 })
+            except Exception:
+                pass
+
+        # Sort by score desc and return top 12
+        scored.sort(key=lambda x: x.get('score', 0), reverse=True)
+        return jsonify({ 'applicable': scored[:12] })
+    except Exception as e:
+        import traceback
+        print('advise_case error:', traceback.format_exc())
+        return jsonify({ 'error': str(e) }), 500
 
 @APP.route('/detect_contradictions', methods=['GET'])
 def detect_contradictions():
@@ -618,38 +1194,53 @@ def ingest_case():
 @APP.route('/precedents_for_article', methods=['GET'])
 def precedents_for_article():
     uri = request.args.get('uri')
-    if not uri:
-        return jsonify({'error':'uri param required (article URI)'}), 400
+    art_num = request.args.get('articleNumber')
+    if not uri and not art_num:
+        return jsonify({'error':'uri or articleNumber required'}), 400
     jurisdiction = request.args.get('jurisdiccion')
     year = request.args.get('year')
     limit = int(request.args.get('limit') or 50)
     try:
-        # Accept either an Article URI or a Law URI. If a Law is provided, gather its articles.
+        # Accept articleNumber, Article URI, or Law URI. Prefer articleNumber for version-agnostic behavior.
         from rdflib import URIRef
         LO = URIRef('http://legalontosystem.pe/ontology#')
         # support both vocabulary variants used in the dataset: 'tieneArticulo' and 'hasArticle'
         ART_PROP_NAMES = ['tieneArticulo', 'hasArticle']
         target_uris = []
-        uref = URIRef(uri)
-        # if the provided URI is a law/version with articles, iterate its articles
-        try:
-            for prop_name in ART_PROP_NAMES:
-                prop = URIRef(str(LO) + prop_name)
-                for art in GRAPH.objects(uref, prop):
-                    target_uris.append(str(art))
-            # dedupe while preserving order
-            seen = set()
-            deduped = []
-            for a in target_uris:
-                if a not in seen:
-                    seen.add(a)
-                    deduped.append(a)
-            target_uris = deduped
-        except Exception:
-            pass
-        # if no articles found, assume the uri is itself an article
-        if not target_uris:
-            target_uris = [uri]
+        # Prefer articleNumber: find all matching articles across versions
+        if art_num:
+            num_p = URIRef(str(LO) + 'articleNumber')
+            try:
+                for s in GRAPH.subjects(num_p, rdflib.Literal(int(art_num))):
+                    target_uris.append(str(s))
+            except Exception:
+                # fallback: match as string
+                for s,p,o in GRAPH.triples((None, num_p, None)):
+                    if str(o).strip() == str(art_num).strip():
+                        target_uris.append(str(s))
+        else:
+            uref = URIRef(uri)
+            # if the provided URI is a law/version with articles, iterate its articles
+            try:
+                for prop_name in ART_PROP_NAMES:
+                    prop = URIRef(str(LO) + prop_name)
+                    for art in GRAPH.objects(uref, prop):
+                        target_uris.append(str(art))
+            except Exception:
+                pass
+            # if no articles found, assume the uri is itself an article
+            if not target_uris and uri:
+                # extract article number if ELI
+                import re
+                m = re.search(r"/articulo/(\d+)", uri)
+                if m:
+                    art_num = m.group(1)
+                    num_p = URIRef(str(LO) + 'articleNumber')
+                    for s,p,o in GRAPH.triples((None, num_p, None)):
+                        if str(o).strip() == str(art_num).strip():
+                            target_uris.append(str(s))
+                else:
+                    target_uris = [uri]
 
         print('precedents_for_article: target_uris=', target_uris)
         # aggregate results for all target articles (dedupe by case URI)
@@ -829,6 +1420,67 @@ def cases_overview():
             except Exception:
                 continue
         return jsonify({'count': len(out), 'results': out[:limit]})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@APP.route('/graph_integrity', methods=['GET'])
+def graph_integrity():
+    """Quick integrity report: detect dangling references, missing labels/titles, and inconsistent article-law links.
+    Returns counts and samples to help diagnose "Error al obtener entidad" issues from the frontend.
+    """
+    try:
+        LO = rdflib.Namespace('http://legalontosystem.pe/ontology#')
+        report = {
+            'subjects': 0,
+            'missing_titles': 0,
+            'missing_titles_samples': [],
+            'dangling_objects': 0,
+            'dangling_samples': [],
+            'article_without_law': 0,
+            'article_without_law_samples': [],
+            'law_without_articles': 0,
+            'law_without_articles_samples': [],
+        }
+        # Count subjects
+        subs = set(GRAPH.subjects(None, None))
+        report['subjects'] = len(subs)
+        # Missing label/titulo
+        for s in list(subs)[:5000]:
+            label = GRAPH.value(s, RDFS.label) or GRAPH.value(s, rdflib.URIRef(str(LO) + 'titulo'))
+            if not label:
+                report['missing_titles'] += 1
+                if len(report['missing_titles_samples']) < 20:
+                    report['missing_titles_samples'].append(str(s))
+        # Dangling objects: objects that never appear as a subject (URIRefs only)
+        objs = set(o for _,_,o in GRAPH.triples((None, None, None)) if isinstance(o, rdflib.term.Identifier))
+        dangling = [o for o in objs if (o, None, None) not in GRAPH]
+        report['dangling_objects'] = len(dangling)
+        report['dangling_samples'] = [str(o) for o in dangling[:20]]
+        # Articles without parent law
+        art_t = rdflib.URIRef(str(LO) + 'Articulo')
+        pertenece = rdflib.URIRef(str(LO) + 'perteneceALey')
+        tiene = rdflib.URIRef(str(LO) + 'tieneArticulo')
+        has = rdflib.URIRef(str(LO) + 'hasArticle')
+        for a in GRAPH.subjects(RDF.type, art_t):
+            parent = GRAPH.value(a, pertenece)
+            if not parent:
+                report['article_without_law'] += 1
+                if len(report['article_without_law_samples']) < 20:
+                    report['article_without_law_samples'].append(str(a))
+        # Laws without any articles
+        ley_t = rdflib.URIRef(str(LO) + 'Ley')
+        for law in GRAPH.subjects(RDF.type, ley_t):
+            has_any = False
+            for _a in GRAPH.objects(law, tiene):
+                has_any = True; break
+            if not has_any:
+                for _a in GRAPH.objects(law, has):
+                    has_any = True; break
+            if not has_any:
+                report['law_without_articles'] += 1
+                if len(report['law_without_articles_samples']) < 20:
+                    report['law_without_articles_samples'].append(str(law))
+        return jsonify(report)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1083,11 +1735,30 @@ def ingest_pdf():
                     created.append(str(doc_uri))
                     part_subjects[sha] = doc_uri
 
-            # Link the created document(s) to any articles detected by the NLP extractor
+            # Link the created document(s) AND any matching Caso by filename to the detected articles
             try:
                 menciona_prop = rdflib.URIRef('http://legalontosystem.pe/ontology#mencionaArticulo')
+                archivo_p = rdflib.URIRef('http://legalontosystem.pe/ontology#archivoFilename')
+                caso_t = rdflib.URIRef('http://legalontosystem.pe/ontology#Caso')
                 # For each detected article, attach mencionaArticulo to parent and to all part subjects (new or existing)
                 parent_uri = rdflib.URIRef(RESOURCE_BASE + doc_id_base)
+                # Try to discover existing Caso nodes that correspond to this PDF by filename
+                matched_cases = set()
+                try:
+                    # exact match on filename
+                    for s in GRAPH.subjects(archivo_p, rdflib.Literal(filename)):
+                        matched_cases.add(s)
+                    # secure_filename variant
+                    sf = secure_filename(filename)
+                    if sf != filename:
+                        for s in GRAPH.subjects(archivo_p, rdflib.Literal(sf)):
+                            matched_cases.add(s)
+                    # some datasets store only the base name without extension
+                    base_no_ext, _ext = os.path.splitext(filename)
+                    for s in GRAPH.subjects(archivo_p, rdflib.Literal(base_no_ext)):
+                        matched_cases.add(s)
+                except Exception:
+                    pass
                 for art in aggregated.get('articles', []):
                     # art may be a number string; build ELI article URI using detected CP year
                     art_num = ''.join(ch for ch in str(art) if ch.isdigit())
@@ -1107,6 +1778,9 @@ def ingest_pdf():
                         for sha, subj in part_subjects.items():
                             sref = subj if isinstance(subj, rdflib.term.Node) else rdflib.URIRef(str(subj))
                             GRAPH.add((sref, menciona_prop, art_uri))
+                        # also attach to any matching Caso subjects (so precedent search finds real cases)
+                        for csubj in matched_cases:
+                            GRAPH.add((csubj, menciona_prop, art_uri))
                     except Exception:
                         # skip if ELI generation fails for any reason
                         continue
@@ -1170,6 +1844,7 @@ def entity():
     if not uri:
         return jsonify({'error':'uri param required'}), 400
     # build SPARQL to get all properties for subject
+    uri = _normalize_uri(uri)
     q = f"SELECT ?p ?o WHERE {{ <{uri}> ?p ?o }} LIMIT 1000"
     try:
         res = GRAPH.query(q)
@@ -1177,6 +1852,39 @@ def entity():
         for r in res:
             rows.append({ 'p': str(r[0]), 'o': str(r[1]) })
         return jsonify({'uri':uri,'properties':rows})
+    except Exception:
+        # Fallback: scan triples directly without SPARQL
+        try:
+            from rdflib import URIRef
+            sref = URIRef(uri)
+            rows = []
+            for p,o in GRAPH.predicate_objects(sref):
+                rows.append({ 'p': str(p), 'o': str(o) })
+            return jsonify({'uri': uri, 'properties': rows})
+        except Exception as e2:
+            return jsonify({'error': str(e2)}), 500
+
+@APP.route('/resolve_entity', methods=['GET'])
+def resolve_entity():
+    """Resolve and return concise entity info, normalizing URIs and handling missing nodes gracefully.
+    Query: ?uri=...
+    Response: { uri, title, types: [...], exists: bool, properties: [...] }
+    """
+    uri = request.args.get('uri')
+    if not uri:
+        return jsonify({'error':'uri param required'}), 400
+    try:
+        uri = _normalize_uri(uri)
+        from rdflib import URIRef
+        sref = URIRef(uri)
+        exists = (sref, None, None) in GRAPH
+        LO = rdflib.URIRef('http://legalontosystem.pe/ontology#')
+        title = GRAPH.value(sref, RDFS.label) or GRAPH.value(sref, rdflib.URIRef(str(LO) + 'titulo'))
+        types = [str(t) for t in GRAPH.objects(sref, RDF.type)]
+        props = []
+        for p,o in GRAPH.predicate_objects(sref):
+            props.append({ 'p': str(p), 'o': str(o) })
+        return jsonify({ 'uri': uri, 'title': (str(title) if title else None), 'types': types, 'exists': bool(exists), 'properties': props })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

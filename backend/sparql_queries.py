@@ -12,7 +12,7 @@ def search_laws_by_text(q: str):
       OPTIONAL {{ ?law lo:titulo ?titulo }}
       OPTIONAL {{ ?law lo:texto ?texto }}
       BIND(COALESCE(?label, ?titulo, "") AS ?title)
-      FILTER( regex(str(?title), "{q_esc}", "i") || (bound(?texto) && regex(str(?texto), "{q_esc}", "i")) )
+      FILTER( CONTAINS(lcase(str(?title)), "{q_esc.lower()}") || (BOUND(?texto) && CONTAINS(lcase(str(?texto)), "{q_esc.lower()}")) )
     }} LIMIT 50
     """
 
@@ -21,7 +21,7 @@ def example_precedent_query():
     return """
     PREFIX lo: <http://legalontosystem.pe/ontology#>
     SELECT ?case ?precedent WHERE {
-      ?case a lo:Caso ; lo.tienePrecedente ?precedent .
+      ?case a lo:Caso ; lo:tienePrecedente ?precedent .
     } LIMIT 100
     """
 
@@ -31,7 +31,7 @@ def find_applicable_laws_query(case_uri: str):
     return f"""
     PREFIX lo: <http://legalontosystem.pe/ontology#>
     SELECT ?law ?article WHERE {{
-      ?law lo.tieneArticulo ?article .
-      ?article lo.aplicaACaso <{case_uri_esc}> .
+      ?law (lo:tieneArticulo|lo:hasArticle) ?article .
+      ?article lo:aplicaACaso <{case_uri_esc}> .
     }}
     """

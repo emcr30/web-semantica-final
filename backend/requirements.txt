@@ -2,6 +2,8 @@ Flask==2.3.3
 Flask-Cors==3.0.10
 # rdflib 6.4.0 is not available on PyPI for some Python versions; pin to 6.3.2
 rdflib==6.3.2
+# Pin pyparsing to avoid rdflib SPARQL parser signature issues
+pyparsing==3.0.9
 owlrl==6.0.2
 spacy==3.7.0
 requests==2.31.0

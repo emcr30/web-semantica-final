@@ -122,12 +122,12 @@ SELECT ?res ?label ?titulo WHERE {
     }catch(err){
       console.error('cases_overview failed, trying SPARQL fallback:', err)
       try{
-        const q = `
+          const q = `
 PREFIX lo: <http://legalontosystem.pe/ontology#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 SELECT ?case ?label ?date ?jur ?crime ?pdf ?art ?artLabel ?artNum ?law1 ?law1Label ?law2 ?law2Label
 WHERE {
-  ?case a lo:Caso .
+        { ?case a lo:Caso } UNION { ?case a lo:Documento } .
   OPTIONAL { ?case rdfs:label ?label }
   OPTIONAL { ?case lo:fechaSentencia ?date }
   OPTIONAL { ?case lo:jurisdiccionCaso ?jur }
